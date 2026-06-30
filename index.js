@@ -7,8 +7,8 @@ require('dotenv').config();
 // 🎯 CORRECTIF CRUCIAL : Permet à JSON.stringify de sérialiser les types BigInt retournés par PostgreSQL
 BigInt.prototype.toJSON = function() { return this.toString(); };
 
-// 🔥 MODIFICATION : Utilisation de l'URL Direct Connection (Port 5432) pour éviter le blocage EAUTHTIMEOUT sur Vercel
-const connectionString = process.env.DATABASE_URL || "postgresql://postgres:Ilovegaming21@db.dmmtxstoystqampadggp.supabase.co:5432/postgres?sslmode=require&connect_timeout=10";
+// 🔥 CONFIGURATION OPTIMISÉE POUR VERCEL : Utilisation du Transaction Pooler (Port 6543 ou 5432 via le sous-domaine de pooling)
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres:Ilovegaming21@aws-0-eu-west-1.pooler.supabase.com:5432/postgres?sslmode=require&connect_timeout=15";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -23,16 +23,17 @@ const pool = new Pool({
     connectionString: connectionString,
     ssl: {
         rejectUnauthorized: false // Requis pour les connexions cloud sécurisées
-    }
+    },
+    max: 4,                       // Limite stricte de connexions simultanées pour Vercel Serverless
+    idleTimeoutMillis: 15000,     // Ferme automatiquement les connexions inactives après 15s
+    connectionTimeoutMillis: 5000 // Coupe court après 5s en cas de problème réseau (évite le statut pending infini)
 });
 
-pool.connect((err) => {
-    if (err) {
-        console.error("❌ Erreur lors de la connexion à PostgreSQL :", err.message);
-    } else {
-        console.log("🗄️ Connecté avec succès à la base de données PostgreSQL via la Connexion Directe.");
-    }
-});
+// En mode serverless, on évite le pool.connect() persistant global qui bloque les requêtes.
+// On fait simplement une vérification unique au démarrage du conteneur.
+pool.query('SELECT NOW()')
+    .then(() => console.log("🗄️ Connexion à PostgreSQL opérationnelle via le Pooler AWS Supabase."))
+    .catch(err => console.error("❌ Erreur initiale de validation PostgreSQL :", err.message));
 
 // Création des tables alignée avec les types bigint de Supabase
 const initDb = async () => {
@@ -83,7 +84,7 @@ async function initEmailTransporter() {
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
         transporter = nodemailer.createTransport({
             service: 'gmail', 
-            sidebar: {
+            auth: { // 🔧 Correction ici : 'auth' à la place de 'sidebar'
                 user: process.env.EMAIL_USER,
                 pass: process.env.EMAIL_PASS
             }
@@ -93,7 +94,6 @@ async function initEmailTransporter() {
         try {
             let testAccount = await nodemailer.createTestAccount();
             transporter = nodemailer.createTransport({
-                network: "smtp.ethereal.email",
                 host: "smtp.ethereal.email",
                 port: 587,
                 secure: false, 
@@ -261,7 +261,6 @@ app.get('/api/appointments', async (req, res) => {
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: "userId requis." });
     try {
-        // Double guillemet pour correspondre exactement à l'écriture SQL PostgreSQL
         const result = await pool.query('SELECT id, "userId", "clientName", "clientEmail", "dateTime", status FROM appointments WHERE "userId" = $1', [userId]);
         const formattedRows = result.rows.map(row => ({
             id: String(row.id),
@@ -367,7 +366,7 @@ app.post('/api/public/book', async (req, res) => {
 
         // 2. Notification au Client
         const clientSubject = emailLang === 'en' ? "⏳ Booking request received" : "⏳ Demande de réservation reçue";
-        const clientHtml = generateEmailTemplate(emailLang === 'en' ? "Pending" : "En attente", "success", clientSubject, "Votre demande is en cours d'examen.", `<div><strong>Créneau :</strong> ${dateNice}</div>`);
+        const clientHtml = generateEmailTemplate(emailLang === 'en' ? "Pending" : "En attente", "success", clientSubject, "Votre demande est en cours d'examen.", `<div><strong>Créneau :</strong> ${dateNice}</div>`);
         sendNotificationEmail(clientEmail, clientSubject, clientHtml);
 
         return res.status(201).json({ success: true, message: "Rendez-vous enregistré avec succès !" });
@@ -377,5 +376,5 @@ app.post('/api/public/book', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Serveur connecté à PostgreSQL et démarré sur le port ${PORT}`);
+    console.log(`🚀 Serveur connecté à PostgreSQL via Pooler et démarré sur le port ${PORT}`);
 });
