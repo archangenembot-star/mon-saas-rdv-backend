@@ -4,8 +4,11 @@ const nodemailer = require('nodemailer');
 const { Pool } = require('pg'); 
 require('dotenv').config(); 
 
-// FORCE L'UTILISATION DE LA NOUVELLE URL DU POOLER AWS POUR TOUT LE PROCESSUS NODE
-process.env.DATABASE_URL = "postgresql://postgres.dmmtxstoystqampadggp:Ilovegaming21@aws-0-eu-west-1.pooler.supabase.com:6543/postgres";
+// 🎯 CORRECTIF CRUCIAL : Permet à JSON.stringify de sérialiser les types BigInt retournés par PostgreSQL
+BigInt.prototype.toJSON = function() { return this.toString(); };
+
+// Utilise la variable d'environnement ou la chaîne par défaut de manière sécurisée
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres.dmmtxstoystqampadggp:Ilovegaming21@aws-0-eu-west-1.pooler.supabase.com:6543/postgres";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -17,7 +20,7 @@ app.use(express.json());
 // INITIALISATION DE LA BASE DE DONNÉES POSTGRESQL (SUPABASE)
 // -------------------------------------------------------------
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: connectionString,
     ssl: {
         rejectUnauthorized: false // Requis pour les connexions cloud sécurisées
     }
@@ -31,13 +34,13 @@ pool.connect((err) => {
     }
 });
 
-// Création des tables si elles n'existent pas
+// Création des tables alignée avec les types bigint de Supabase
 const initDb = async () => {
     try {
         // Table des Commerçants
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
-                id TEXT PRIMARY KEY,
+                id bigint PRIMARY KEY,
                 email TEXT UNIQUE,
                 password TEXT,
                 company TEXT
@@ -47,8 +50,8 @@ const initDb = async () => {
         // Table des Rendez-vous
         await pool.query(`
             CREATE TABLE IF NOT EXISTS appointments (
-                id TEXT PRIMARY KEY,
-                userId TEXT,
+                id bigint PRIMARY KEY,
+                userId bigint,
                 clientName TEXT,
                 clientEmail TEXT,
                 dateTime TEXT,
@@ -61,7 +64,7 @@ const initDb = async () => {
         if (parseInt(res.rows[0].count) === 0) {
             await pool.query(
                 "INSERT INTO users (id, email, password, company) VALUES ($1, $2, $3, $4)", 
-                ["1", "merchant-test@saas.com", "123", "SaaS Partner Ltd."]
+                [1, "merchant-test@saas.com", "123", "SaaS Partner Ltd."]
             );
             console.log("👤 Utilisateur de test inséré par défaut (id: 1).");
         }
@@ -90,6 +93,7 @@ async function initEmailTransporter() {
         try {
             let testAccount = await nodemailer.createTestAccount();
             transporter = nodemailer.createTransport({
+                network: "smtp.ethereal.email",
                 host: "smtp.ethereal.email",
                 port: 587,
                 secure: false, 
@@ -178,7 +182,7 @@ app.post('/api/login', async (req, res) => {
         if (!user || user.password !== password) {
             return res.status(400).json({ error: "Identifiants invalides." });
         }
-        return res.json({ id: user.id, email: user.email, company: user.company });
+        return res.json({ id: String(user.id), email: user.email, company: user.company });
     } catch (err) {
         return res.status(500).json({ error: err.message });
     }
@@ -190,13 +194,13 @@ app.post('/api/register', async (req, res) => {
     if (!email || !password) {
         return res.status(400).json({ error: "Champs manquants." });
     }
-    const userId = String(Date.now());
+    const userId = Date.now(); 
     try {
         await pool.query(
             "INSERT INTO users (id, email, password, company) VALUES ($1, $2, $3, $4)", 
             [userId, email, password, ""]
         );
-        return res.status(201).json({ id: userId, email });
+        return res.status(201).json({ id: String(userId), email });
     } catch (err) {
         if (err.message.includes("unique") || err.code === '23505') {
             return res.status(400).json({ error: "Cet e-mail est déjà utilisé." });
@@ -211,7 +215,23 @@ app.get('/api/user/:id', async (req, res) => {
     try {
         const result = await pool.query("SELECT id, email, company FROM users WHERE id = $1", [id]);
         if (result.rows.length === 0) return res.status(404).json({ error: "Utilisateur introuvable." });
-        return res.json(result.rows[0]);
+        
+        const user = result.rows[0];
+        return res.json({ id: String(user.id), email: user.email, company: user.company });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+// COMPATIBILITÉ FRONTEND : Gère l'appel alternatif vers /api/profile
+app.get('/api/profile', async (req, res) => {
+    const { userId } = req.query;
+    try {
+        const result = await pool.query("SELECT id, email, company FROM users WHERE id = $1", [userId]);
+        if (result.rows.length === 0) return res.status(404).json({ error: "Utilisateur introuvable." });
+        
+        const user = result.rows[0];
+        return res.json({ id: String(user.id), email: user.email, company: user.company });
     } catch (err) {
         return res.status(500).json({ error: err.message });
     }
@@ -239,8 +259,13 @@ app.post('/api/user/update', async (req, res) => {
 app.get('/api/appointments', async (req, res) => {
     const { userId } = req.query;
     try {
-        const result = await pool.query("SELECT * FROM appointments WHERE userId = $1", [String(userId)]);
-        return res.json(result.rows);
+        const result = await pool.query("SELECT * FROM appointments WHERE userId = $1", [userId]);
+        const formattedRows = result.rows.map(row => ({
+            ...row,
+            id: String(row.id),
+            userid: String(row.userid)
+        }));
+        return res.json(formattedRows);
     } catch (err) {
         return res.status(500).json({ error: err.message });
     }
@@ -289,7 +314,7 @@ app.put('/api/appointments/:id', async (req, res) => {
             }
             sendNotificationEmail(clientEmailField, emailSubject, clientHtml);
         }
-        return res.json({ id, status: updatedStatus });
+        return res.json({ id: String(id), status: updatedStatus });
     } catch (err) {
         return res.status(500).json({ error: err.message });
     }
@@ -315,19 +340,19 @@ app.post('/api/public/book', async (req, res) => {
         return res.status(400).json({ error: "Champs manquants." });
     }
 
-    const apptId = String(Date.now());
+    const apptId = Date.now(); 
     const status = "Pending";
 
     try {
         await pool.query(
             `INSERT INTO appointments (id, userId, clientName, clientEmail, dateTime, status) VALUES ($1, $2, $3, $4, $5, $6)`,
-            [apptId, String(userId), clientName, clientEmail, dateTime, status]
+            [apptId, userId, clientName, clientEmail, dateTime, status]
         );
 
         const dateNice = formatEmailDate(dateTime, emailLang);
 
         // 1. Notification au Commerçant
-        const merchantRes = await pool.query("SELECT email FROM users WHERE id = $1", [String(userId)]);
+        const merchantRes = await pool.query("SELECT email FROM users WHERE id = $1", [userId]);
         if (merchantRes.rows.length > 0) {
             const merchant = merchantRes.rows[0];
             const detailsMerchant = `
