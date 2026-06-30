@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "nodemon index.js",
+    "vercel-build": "npm rebuild sqlite3 --fallback-to-build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
