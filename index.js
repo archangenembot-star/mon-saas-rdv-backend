@@ -7,8 +7,8 @@ require('dotenv').config();
 // 🎯 CORRECTIF CRUCIAL : Permet à JSON.stringify de sérialiser les types BigInt retournés par PostgreSQL
 BigInt.prototype.toJSON = function() { return this.toString(); };
 
-// 🔥 CONFIGURATION STRICTE VERCEL : Dépendance exclusive à la variable d'environnement du tableau de bord
-const connectionString = process.env.DATABASE_URL;
+// 🔥 CONFIGURATION EN DUR DU TRANSACTION POOLER (Avec l'option pgbouncer=true requise pour Vercel)
+const connectionString = "postgresql://postgres.dmmtxstoystqampadggp:Ilovegaming21@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -24,17 +24,17 @@ const pool = new Pool({
     ssl: {
         rejectUnauthorized: false // Requis pour les connexions cloud sécurisées
     },
-    max: 4,                       // Évite la saturation sur Vercel Serverless
-    idleTimeoutMillis: 15000,     // Nettoie les connexions dormantes après 15s
-    connectionTimeoutMillis: 5000 // Coupe après 5s max si la base de données ne répond pas
+    max: 4,                       // Limite de connexions simultanées pour éviter de saturer le pooler
+    idleTimeoutMillis: 15000,     // Ferme automatiquement les connexions inactives après 15s
+    connectionTimeoutMillis: 5000 // Coupe après 5s max en cas de coupure réseau
 });
 
-// Validation rapide de la connexion sans bloquer le thread global
+// Validation rapide de la connexion au démarrage
 pool.query('SELECT NOW()')
-    .then(() => console.log("🗄️ Pooler activé et prêt à exécuter les requêtes."))
-    .catch(err => console.error("❌ Erreur de validation de la configuration :", err.message));
+    .then(() => console.log("🗄️ Connexion à PostgreSQL opérationnelle via le Pooler AWS Supabase."))
+    .catch(err => console.error("❌ Erreur de connexion PostgreSQL :", err.message));
 
-// Création automatique des tables
+// Création des tables
 const initDb = async () => {
     try {
         // Table des Commerçants
@@ -59,17 +59,17 @@ const initDb = async () => {
             )
         `);
 
-        // Utilisateur de test par défaut si la base est vide
+        // Utilisateur de test par défaut si vide
         const res = await pool.query("SELECT COUNT(*) as count FROM users");
         if (parseInt(res.rows[0].count) === 0) {
             await pool.query(
                 "INSERT INTO users (id, email, password, company) VALUES ($1, $2, $3, $4)", 
                 [1, "merchant-test@saas.com", "123", "SaaS Partner Ltd."]
             );
-            console.log("👤 Utilisateur de test inséré.");
+            console.log("👤 Utilisateur de test inséré par défaut.");
         }
     } catch (err) {
-        console.error("❌ Erreur d'initialisation DB :", err.message);
+        console.error("❌ Erreur lors de l'initialisation des tables :", err.message);
     }
 };
 initDb();
@@ -375,5 +375,5 @@ app.post('/api/public/book', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Serveur démarré sur le port ${PORT}`);
+    console.log(`🚀 Serveur démarré avec succès sur le port ${PORT}`);
 });
