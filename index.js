@@ -1,8 +1,11 @@
 const express = require('express');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
-const { Pool } = require('pg'); // Remplacement de sqlite3 par pg
+const { Pool } = require('pg'); 
 require('dotenv').config(); 
+
+// FORCE L'UTILISATION DE LA NOUVELLE URL DU POOLER AWS POUR TOUT LE PROCESSUS NODE
+process.env.DATABASE_URL = "postgresql://postgres.dmmtxstoystqampadggp:Ilovegaming21@aws-0-eu-west-1.pooler.supabase.com:6543/postgres";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -13,9 +16,8 @@ app.use(express.json());
 // -------------------------------------------------------------
 // INITIALISATION DE LA BASE DE DONNÉES POSTGRESQL (SUPABASE)
 // -------------------------------------------------------------
-// Modification directe ici avec le port 6543 pour contourner le blocage Vercel
 const pool = new Pool({
-    connectionString: "postgresql://postgres:Ilovegaming21@db.dmmtxstoystqampadggp.supabase.co:6543/postgres?pgbouncer=true",
+    connectionString: process.env.DATABASE_URL,
     ssl: {
         rejectUnauthorized: false // Requis pour les connexions cloud sécurisées
     }
@@ -25,7 +27,7 @@ pool.connect((err) => {
     if (err) {
         console.error("❌ Erreur lors de la connexion à PostgreSQL :", err.message);
     } else {
-        console.log("🗄️ Connecté avec succès à la base de données PostgreSQL (Supabase).");
+        console.log("🗄️ Connecté avec succès à la base de données PostgreSQL via le Pooler AWS.");
     }
 });
 
