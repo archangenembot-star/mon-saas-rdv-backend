@@ -1,55 +1,72 @@
 const express = require('express');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const { Pool } = require('pg'); // Remplacement de sqlite3 par pg
 require('dotenv').config(); 
 
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
 
 // -------------------------------------------------------------
-// INITIALISATION DE LA BASE DE DONNÉES SQLITE
+// INITIALISATION DE LA BASE DE DONNÉES POSTGRESQL (SUPABASE)
 // -------------------------------------------------------------
-const dbPath = path.resolve(__dirname, 'database.sqlite');
-const db = new sqlite3.Database(dbPath, (err) => {
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: false // Requis pour les connexions cloud sécurisées
+    }
+});
+
+pool.connect((err) => {
     if (err) {
-        console.error("❌ Erreur lors de l'ouverture de la base de données :", err.message);
+        console.error("❌ Erreur lors de la connexion à PostgreSQL :", err.message);
     } else {
-        console.log("🗄️ Connecté avec succès à la base de données SQLite locale.");
+        console.log("🗄️ Connecté avec succès à la base de données PostgreSQL (Supabase).");
     }
 });
 
 // Création des tables si elles n'existent pas
-db.serialize(() => {
-    // Table des Commerçants (Users)
-    db.run(`CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        email TEXT UNIQUE,
-        password TEXT
-    )`);
+const initDb = async () => {
+    try {
+        // Table des Commerçants
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                email TEXT UNIQUE,
+                password TEXT,
+                company TEXT
+            )
+        `);
 
-    // Table des Rendez-vous (Appointments)
-    db.run(`CREATE TABLE IF NOT EXISTS appointments (
-        id TEXT PRIMARY KEY,
-        userId TEXT,
-        clientName TEXT,
-        clientEmail TEXT,
-        dateTime TEXT,
-        status TEXT
-    )`);
+        // Table des Rendez-vous
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS appointments (
+                id TEXT PRIMARY KEY,
+                userId TEXT,
+                clientName TEXT,
+                clientEmail TEXT,
+                dateTime TEXT,
+                status TEXT
+            )
+        `);
 
-    // Insérer un utilisateur de test par défaut si la table est vide
-    db.get("SELECT COUNT(*) as count FROM users", [], (err, row) => {
-        if (!err && row.count === 0) {
-            db.run("INSERT INTO users (id, email, password) VALUES (?, ?, ?)", ["1", "merchant-test@saas.com", "123"]);
+        // Insérer un utilisateur de test par défaut si vide
+        const res = await pool.query("SELECT COUNT(*) as count FROM users");
+        if (parseInt(res.rows[0].count) === 0) {
+            await pool.query(
+                "INSERT INTO users (id, email, password, company) VALUES ($1, $2, $3, $4)", 
+                ["1", "merchant-test@saas.com", "123", "SaaS Partner Ltd."]
+            );
             console.log("👤 Utilisateur de test inséré par défaut (id: 1).");
         }
-    });
-});
+    } catch (err) {
+        console.error("❌ Erreur lors de l'initialisation des tables :", err.message);
+    }
+};
+initDb();
 
 // -------------------------------------------------------------
 // CONFIGURATION DE NODEMAILER (Transporteur d'emails)
@@ -86,7 +103,6 @@ async function initEmailTransporter() {
 }
 initEmailTransporter();
 
-// FONCTION DE FORMATAGE DE LA DATE (S'adapte à la langue demandée)
 function formatEmailDate(dateTimeStr, lang = 'fr') {
     if (!dateTimeStr) return '';
     const dateObj = new Date(dateTimeStr);
@@ -101,7 +117,6 @@ function formatEmailDate(dateTimeStr, lang = 'fr') {
     });
 }
 
-// NOUVEAU GÉNÉRATEUR DE DESIGN HTML PREMIUM (Glassmorphism & SaaS Dark UI)
 function generateEmailTemplate(badgeText, badgeColor, title, description, detailsHtml) {
     const isSuccess = badgeColor === 'success';
     const gradient = isSuccess 
@@ -114,9 +129,7 @@ function generateEmailTemplate(badgeText, badgeColor, title, description, detail
     return `
     <!DOCTYPE html>
     <html>
-    <head>
-        <meta charset="UTF-8">
-    </head>
+    <head><meta charset="UTF-8"></head>
     <body style="font-family: 'Segoe UI', Arial, sans-serif; background-color: #0f172a; margin: 0; padding: 40px 10px; color: #ffffff;">
         <div style="max-width: 550px; margin: 0 auto; background: ${gradient}; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 32px; box-shadow: 0 20px 40px rgba(0,0,0,0.4);">
             <div style="font-size: 20px; font-weight: bold; color: #a5b4fc; margin-bottom: 24px; text-align: center;">📅 SaaS Appointment Manager</div>
@@ -125,11 +138,9 @@ function generateEmailTemplate(badgeText, badgeColor, title, description, detail
             </div>
             <h1 style="font-size: 24px; font-weight: 800; margin: 0 0 16px 0; color: #ffffff; text-align: center;">${title}</h1>
             <p style="font-size: 15px; color: #94a3b8; line-height: 1.6; margin: 0 0 20px 0; text-align: center;">${description}</p>
-            
             <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 20px; margin-bottom: 24px;">
                 ${detailsHtml}
             </div>
-            
             <div style="text-align: center; font-size: 12px; color: #475569; margin-top: 24px; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 20px;">
                 &copy; 2026 SaaS Appointment Manager. Tous droits réservés.
             </div>
@@ -149,57 +160,91 @@ async function sendNotificationEmail(toEmail, subject, htmlContent) {
             html: htmlContent
         });
         console.log(`✉️ Email envoyé avec succès à ${toEmail} !`);
-        if (nodemailer.getTestMessageUrl(info)) {
-            console.log(`🔗 Voir l'email : ${nodemailer.getTestMessageUrl(info)}`);
-        }
     } catch (error) {
         console.error("❌ Erreur lors de l'envoi de l'email :", error);
     }
 }
 
-// ROUTE 1 : CONNEXION (Login via SQLite)
-app.post('/api/login', (req, res) => {
+// ROUTE 1 : CONNEXION
+app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
-    db.get("SELECT * FROM users WHERE LOWER(email) = LOWER(?)", [email], (err, user) => {
-        if (err || !user || user.password !== password) {
+    try {
+        const result = await pool.query("SELECT * FROM users WHERE LOWER(email) = LOWER($1)", [email]);
+        const user = result.rows[0];
+        
+        if (!user || user.password !== password) {
             return res.status(400).json({ error: "Identifiants invalides." });
         }
-        return res.json({ id: user.id, email: user.email });
-    });
+        return res.json({ id: user.id, email: user.email, company: user.company });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
 });
 
-// ROUTE 2 : INSCRIPTION (Ajoutée pour régler le problème du bouton Register / Sign Up)
-app.post('/api/register', (req, res) => {
+// ROUTE 2 : INSCRIPTION
+app.post('/api/register', async (req, res) => {
     const { email, password } = req.body;
-    
     if (!email || !password) {
         return res.status(400).json({ error: "Champs manquants." });
     }
-
     const userId = String(Date.now());
-
-    db.run("INSERT INTO users (id, email, password) VALUES (?, ?, ?)", [userId, email, password], function(err) {
-        if (err) {
-            if (err.message.includes("UNIQUE")) {
-                return res.status(400).json({ error: "Cet e-mail est déjà utilisé." });
-            }
-            return res.status(500).json({ error: err.message });
-        }
+    try {
+        await pool.query(
+            "INSERT INTO users (id, email, password, company) VALUES ($1, $2, $3, $4)", 
+            [userId, email, password, ""]
+        );
         return res.status(201).json({ id: userId, email });
-    });
+    } catch (err) {
+        if (err.message.includes("unique") || err.code === '23505') {
+            return res.status(400).json({ error: "Cet e-mail est déjà utilisé." });
+        }
+        return res.status(500).json({ error: err.message });
+    }
 });
 
-// ROUTE 3 : RÉCUPÉRER LES RENDEZ-VOUS DEPUIS SQLITE
-app.get('/api/appointments', (req, res) => {
+// RECUPERER LES INFOS PROFIL UTILISATEUR
+app.get('/api/user/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const result = await pool.query("SELECT id, email, company FROM users WHERE id = $1", [id]);
+        if (result.rows.length === 0) return res.status(404).json({ error: "Utilisateur introuvable." });
+        return res.json(result.rows[0]);
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+// METTRE À JOUR LE PROFIL
+app.post('/api/user/update', async (req, res) => {
+    const { userId, company, password } = req.body;
+    if (!userId) return res.status(400).json({ error: "ID Utilisateur manquant." });
+
+    try {
+        if (password) {
+            await pool.query("UPDATE users SET company = $1, password = $2 WHERE id = $3", [company, password, userId]);
+            return res.json({ success: true, message: "Profil et mot de passe mis à jour." });
+        } else {
+            await pool.query("UPDATE users SET company = $1 WHERE id = $2", [company, userId]);
+            return res.json({ success: true, message: "Profil mis à jour." });
+        }
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+// ROUTE 3 : RÉCUPÉRER LES RENDEZ-VOUS
+app.get('/api/appointments', async (req, res) => {
     const { userId } = req.query;
-    db.all("SELECT * FROM appointments WHERE userId = ?", [String(userId)], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        return res.json(rows);
-    });
+    try {
+        const result = await pool.query("SELECT * FROM appointments WHERE userId = $1", [String(userId)]);
+        return res.json(result.rows);
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
 });
 
-// ROUTE 5 : MODIFIER LE STATUT D'UN RENDEZ-VOUS (Accepter ou Refuser)
-app.put('/api/appointments/:id', (req, res) => {
+// ROUTE 5 : MODIFIER LE STATUT D'UN RENDEZ-VOUS
+app.put('/api/appointments/:id', async (req, res) => {
     const { id } = req.params;
     const { status, lang } = req.body; 
     const updatedStatus = status || 'Confirmed';
@@ -209,79 +254,57 @@ app.put('/api/appointments/:id', (req, res) => {
         return res.status(400).json({ error: "Statut invalide." });
     }
 
-    db.get("SELECT * FROM appointments WHERE id = ?", [id], (err, appointment) => {
-        if (err || !appointment) return res.status(404).json({ error: "Rendez-vous introuvable." });
+    try {
+        const result = await pool.query("SELECT * FROM appointments WHERE id = $1", [id]);
+        const appointment = result.rows[0];
+        if (!appointment) return res.status(404).json({ error: "Rendez-vous introuvable." });
 
-        db.run("UPDATE appointments SET status = ? WHERE id = ?", [updatedStatus, id], function(err) {
-            if (err) return res.status(500).json({ error: err.message });
+        await pool.query("UPDATE appointments SET status = $1 WHERE id = $2", [updatedStatus, id]);
 
-            if (appointment.clientEmail) {
-                const dateNice = formatEmailDate(appointment.dateTime, emailLang);
-                let clientHtml;
-                let emailSubject;
+        if (appointment.clientemail) { // PostgreSQL passe les noms de colonnes en minuscules par défaut
+            const clientEmailField = appointment.clientemail;
+            const clientNameField = appointment.clientname;
+            const dateTimeField = appointment.datetime;
 
-                if (updatedStatus === 'Confirmed') {
-                    emailSubject = emailLang === 'en' ? `✅ Appointment Confirmed!` : `✅ Rendez-vous Confirmé !`;
-                    
-                    const desc = emailLang === 'en' 
-                        ? `Great news! Your booking request has been accepted and verified by the merchant.` 
-                        : `Bonne nouvelle ! Le commerçant a accepté et validé votre demande de rendez-vous.`;
+            const dateNice = formatEmailDate(dateTimeField, emailLang);
+            let clientHtml;
+            let emailSubject;
 
-                    const details = `
-                        <div style="font-size: 14px; color: #cbd5e1; margin-bottom: 8px;"><strong>Date & Heure :</strong> ${dateNice}</div>
-                        <div style="font-size: 14px; color: #cbd5e1; margin-bottom: 8px;"><strong>Client :</strong> ${appointment.clientName}</div>
-                        <div style="font-size: 14px; color: #cbd5e1;"><strong>Statut :</strong> <span style="color:#34d399; font-weight:bold;">${emailLang === 'en' ? 'Confirmed' : 'Validé'}</span></div>
-                    `;
-
-                    clientHtml = generateEmailTemplate(
-                        emailLang === 'en' ? "Confirmed" : "Confirmé", 
-                        "success", 
-                        emailLang === 'en' ? "Your booking is validated!" : "Votre rendez-vous est validé !", 
-                        desc, 
-                        details
-                    );
-                } else if (updatedStatus === 'Cancelled') {
-                    emailSubject = emailLang === 'en' ? `❌ Your appointment request was declined` : `❌ Votre demande de rendez-vous a été déclinée`;
-                    
-                    const desc = emailLang === 'en'
-                        ? `Unfortunately, the professional is unavailable during the requested time slot. Please check their public booking page to try another schedule.`
-                        : `Malheureusement, le commerçant ne pourra pas vous recevoir sur le créneau que vous aviez demandé. Nous vous invitons à soumettre une nouvelle demande.`;
-
-                    const details = `
-                        <div style="font-size: 14px; color: #cbd5e1; margin-bottom: 8px; color:#f87171;"><strong>Slot declined :</strong> ${dateNice}</div>
-                        <div style="font-size: 14px; color: #cbd5e1;"><strong>Client :</strong> ${appointment.clientName}</div>
-                    `;
-
-                    clientHtml = generateEmailTemplate(
-                        emailLang === 'en' ? "Declined" : "Décliné", 
-                        "error", 
-                        emailLang === 'en' ? "Request Declined" : "Demande déclinée", 
-                        desc, 
-                        details
-                    );
-                }
-
-                sendNotificationEmail(appointment.clientEmail, emailSubject, clientHtml);
+            if (updatedStatus === 'Confirmed') {
+                emailSubject = emailLang === 'en' ? `✅ Appointment Confirmed!` : `✅ Rendez-vous Confirmé !`;
+                const desc = emailLang === 'en' ? `Great news! Your booking request has been accepted.` : `Le commerçant a accepté votre rendez-vous.`;
+                const details = `
+                    <div style="font-size: 14px; color: #cbd5e1; margin-bottom: 8px;"><strong>Date :</strong> ${dateNice}</div>
+                    <div style="font-size: 14px; color: #cbd5e1; margin-bottom: 8px;"><strong>Client :</strong> ${clientNameField}</div>
+                `;
+                clientHtml = generateEmailTemplate(emailLang === 'en' ? "Confirmed" : "Confirmé", "success", emailSubject, desc, details);
+            } else {
+                emailSubject = emailLang === 'en' ? `❌ Appointment Declined` : `❌ Rendez-vous Décliné`;
+                const desc = emailLang === 'en' ? `Unfortunately, the professional is unavailable.` : `Le commerçant n'est pas disponible.`;
+                const details = `<div style="font-size: 14px; color: #cbd5e1;"><strong>Slot :</strong> ${dateNice}</div>`;
+                clientHtml = generateEmailTemplate(emailLang === 'en' ? "Declined" : "Décliné", "error", emailSubject, desc, details);
             }
-            return res.json({ id, status: updatedStatus });
-        });
-    });
+            sendNotificationEmail(clientEmailField, emailSubject, clientHtml);
+        }
+        return res.json({ id, status: updatedStatus });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
 });
 
-// ROUTE 6 : SUPPRIMER UN RENDEZ-VOUS (Bouton Poubelle)
-app.delete('/api/appointments/:id', (req, res) => {
+// ROUTE 6 : SUPPRIMER UN RENDEZ-VOUS
+app.delete('/api/appointments/:id', async (req, res) => {
     const { id } = req.params;
-    db.run("DELETE FROM appointments WHERE id = ?", [id], function(err) {
-        if (err) {
-            console.error(err.message);
-            return res.status(500).json({ error: "Erreur lors de la suppression." });
-        }
+    try {
+        await pool.query("DELETE FROM appointments WHERE id = $1", [id]);
         return res.json({ success: true, message: "Rendez-vous supprimé avec succès." });
-    });
+    } catch (err) {
+        return res.status(500).json({ error: "Erreur lors de la suppression." });
+    }
 });
 
 // ROUTE 7 : FORMULAIRE PUBLIC POUR LES CLIENTS
-app.post('/api/public/book', (req, res) => {
+app.post('/api/public/book', async (req, res) => {
     const { userId, clientName, clientEmail, dateTime, lang } = req.body;
     const emailLang = lang === 'en' ? 'en' : 'fr';
 
@@ -292,59 +315,37 @@ app.post('/api/public/book', (req, res) => {
     const apptId = String(Date.now());
     const status = "Pending";
 
-    db.run(
-        `INSERT INTO appointments (id, userId, clientName, clientEmail, dateTime, status) VALUES (?, ?, ?, ?, ?, ?)`,
-        [apptId, String(userId), clientName, clientEmail, dateTime, status],
-        function(err) {
-            if (err) return res.status(500).json({ error: err.message });
+    try {
+        await pool.query(
+            `INSERT INTO appointments (id, userId, clientName, clientEmail, dateTime, status) VALUES ($1, $2, $3, $4, $5, $6)`,
+            [apptId, String(userId), clientName, clientEmail, dateTime, status]
+        );
 
-            const dateNice = formatEmailDate(dateTime, emailLang);
+        const dateNice = formatEmailDate(dateTime, emailLang);
 
-            // 1. Notification au Commerçant
-            db.get("SELECT email FROM users WHERE id = ?", [String(userId)], (err, merchant) => {
-                if (!err && merchant) {
-                    const detailsMerchant = `
-                        <div style="font-size: 14px; color: #cbd5e1; margin-bottom: 8px;"><strong>Client :</strong> ${clientName}</div>
-                        <div style="font-size: 14px; color: #cbd5e1; margin-bottom: 8px;"><strong>E-mail :</strong> ${clientEmail}</div>
-                        <div style="font-size: 14px; color: #cbd5e1;"><strong>Date souhaitée :</strong> ${formatEmailDate(dateTime, 'fr')}</div>
-                    `;
-                    const merchantHtml = generateEmailTemplate(
-                        "Nouveau RDV", 
-                        "success", 
-                        "🔔 Nouvelle demande reçue !", 
-                        "Un client vient de solliciter un créneau via votre page publique de réservation. Rendez-vous sur votre tableau de bord pour y répondre.", 
-                        detailsMerchant
-                    );
-                    sendNotificationEmail(merchant.email, `🔔 Nouveau RDV en attente - ${clientName}`, merchantHtml);
-                }
-            });
-
-            // 2. Notification au Client
-            const clientSubject = emailLang === 'en' ? "⏳ Booking request received" : "⏳ Demande de réservation reçue";
-            const clientTitle = emailLang === 'en' ? "Your request has been sent!" : "Votre demande a bien été envoyée !";
-            const clientDesc = emailLang === 'en'
-                ? `Hi ${clientName}, your booking request has been securely transmitted. It is currently under review by the professional.`
-                : `Bonjour ${clientName}, votre demande a bien été transmise. Elle est en cours d'examen par le professionnel.`;
-
-            const detailsClient = `
-                <div style="font-size: 14px; color: #cbd5e1;"><strong>${emailLang === 'en' ? 'Requested slot:' : 'Créneau demandé :'}</strong> ${dateNice}</div>
+        // 1. Notification au Commerçant
+        const merchantRes = await pool.query("SELECT email FROM users WHERE id = $1", [String(userId)]);
+        if (merchantRes.rows.length > 0) {
+            const merchant = merchantRes.rows[0];
+            const detailsMerchant = `
+                <div style="font-size: 14px; color: #cbd5e1; margin-bottom: 8px;"><strong>Client :</strong> ${clientName}</div>
+                <div style="font-size: 14px; color: #cbd5e1;"><strong>Date souhaitée :</strong> ${dateNice}</div>
             `;
-
-            const clientHtml = generateEmailTemplate(
-                emailLang === 'en' ? "Pending" : "En attente", 
-                "success", 
-                clientTitle, 
-                clientDesc, 
-                detailsClient
-            );
-            
-            sendNotificationEmail(clientEmail, clientSubject, clientHtml);
-
-            return res.status(201).json({ success: true, message: "Rendez-vous enregistré avec succès !" });
+            const merchantHtml = generateEmailTemplate("Nouveau RDV", "success", "🔔 Nouvelle demande reçue !", "Vérifiez votre tableau de bord.", detailsMerchant);
+            sendNotificationEmail(merchant.email, `🔔 Nouveau RDV - ${clientName}`, merchantHtml);
         }
-    );
+
+        // 2. Notification au Client
+        const clientSubject = emailLang === 'en' ? "⏳ Booking request received" : "⏳ Demande de réservation reçue";
+        const clientHtml = generateEmailTemplate(emailLang === 'en' ? "Pending" : "En attente", "success", clientSubject, "Votre demande est en cours d'examen.", `<div><strong>Créneau :</strong> ${dateNice}</div>`);
+        sendNotificationEmail(clientEmail, clientSubject, clientHtml);
+
+        return res.status(201).json({ success: true, message: "Rendez-vous enregistré avec succès !" });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Serveur connecté à SQLite et démarré sur http://localhost:${PORT}`);
+    console.log(`🚀 Serveur connecté à PostgreSQL et démarré sur le port ${PORT}`);
 });
