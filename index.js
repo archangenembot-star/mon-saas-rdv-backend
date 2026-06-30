@@ -7,8 +7,8 @@ require('dotenv').config();
 // 🎯 CORRECTIF CRUCIAL : Permet à JSON.stringify de sérialiser les types BigInt retournés par PostgreSQL
 BigInt.prototype.toJSON = function() { return this.toString(); };
 
-// 🔥 CONFIGURATION OPTIMISÉE POUR VERCEL : Utilisation du Transaction Pooler (Port 6543 ou 5432 via le sous-domaine de pooling)
-const connectionString = process.env.DATABASE_URL || "postgresql://postgres:Ilovegaming21@aws-0-eu-west-1.pooler.supabase.com:5432/postgres?sslmode=require&connect_timeout=15";
+// 🔥 CONFIGURATION STRICTE VERCEL : Dépendance exclusive à la variable d'environnement du tableau de bord
+const connectionString = process.env.DATABASE_URL;
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -24,18 +24,17 @@ const pool = new Pool({
     ssl: {
         rejectUnauthorized: false // Requis pour les connexions cloud sécurisées
     },
-    max: 4,                       // Limite stricte de connexions simultanées pour Vercel Serverless
-    idleTimeoutMillis: 15000,     // Ferme automatiquement les connexions inactives après 15s
-    connectionTimeoutMillis: 5000 // Coupe court après 5s en cas de problème réseau (évite le statut pending infini)
+    max: 4,                       // Évite la saturation sur Vercel Serverless
+    idleTimeoutMillis: 15000,     // Nettoie les connexions dormantes après 15s
+    connectionTimeoutMillis: 5000 // Coupe après 5s max si la base de données ne répond pas
 });
 
-// En mode serverless, on évite le pool.connect() persistant global qui bloque les requêtes.
-// On fait simplement une vérification unique au démarrage du conteneur.
+// Validation rapide de la connexion sans bloquer le thread global
 pool.query('SELECT NOW()')
-    .then(() => console.log("🗄️ Connexion à PostgreSQL opérationnelle via le Pooler AWS Supabase."))
-    .catch(err => console.error("❌ Erreur initiale de validation PostgreSQL :", err.message));
+    .then(() => console.log("🗄️ Pooler activé et prêt à exécuter les requêtes."))
+    .catch(err => console.error("❌ Erreur de validation de la configuration :", err.message));
 
-// Création des tables alignée avec les types bigint de Supabase
+// Création automatique des tables
 const initDb = async () => {
     try {
         // Table des Commerçants
@@ -48,7 +47,7 @@ const initDb = async () => {
             )
         `);
 
-        // Table des Rendez-vous (Utilisation des guillemets doubles pour préserver la casse "userId")
+        // Table des Rendez-vous
         await pool.query(`
             CREATE TABLE IF NOT EXISTS appointments (
                 id bigint PRIMARY KEY,
@@ -60,17 +59,17 @@ const initDb = async () => {
             )
         `);
 
-        // Insérer un utilisateur de test par défaut si vide
+        // Utilisateur de test par défaut si la base est vide
         const res = await pool.query("SELECT COUNT(*) as count FROM users");
         if (parseInt(res.rows[0].count) === 0) {
             await pool.query(
                 "INSERT INTO users (id, email, password, company) VALUES ($1, $2, $3, $4)", 
                 [1, "merchant-test@saas.com", "123", "SaaS Partner Ltd."]
             );
-            console.log("👤 Utilisateur de test inséré par défaut (id: 1).");
+            console.log("👤 Utilisateur de test inséré.");
         }
     } catch (err) {
-        console.error("❌ Erreur lors de l'initialisation des tables :", err.message);
+        console.error("❌ Erreur d'initialisation DB :", err.message);
     }
 };
 initDb();
@@ -84,7 +83,7 @@ async function initEmailTransporter() {
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
         transporter = nodemailer.createTransport({
             service: 'gmail', 
-            auth: { // 🔧 Correction ici : 'auth' à la place de 'sidebar'
+            auth: { 
                 user: process.env.EMAIL_USER,
                 pass: process.env.EMAIL_PASS
             }
@@ -376,5 +375,5 @@ app.post('/api/public/book', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Serveur connecté à PostgreSQL via Pooler et démarré sur le port ${PORT}`);
+    console.log(`🚀 Serveur démarré sur le port ${PORT}`);
 });
