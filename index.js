@@ -7,8 +7,8 @@ require('dotenv').config();
 // 🎯 CORRECTIF CRUCIAL : Permet à JSON.stringify de sérialiser les types BigInt retournés par PostgreSQL
 BigInt.prototype.toJSON = function() { return this.toString(); };
 
-// Utilise la variable d'environnement ou la chaîne par défaut de manière sécurisée
-const connectionString = process.env.DATABASE_URL || "postgresql://postgres.dmmtxstoystqampadggp:Ilovegaming21@aws-0-eu-west-1.pooler.supabase.com:6543/postgres";
+// 🔥 MODIFICATION : Utilisation de l'URL Direct Connection (Port 5432) pour éviter le blocage EAUTHTIMEOUT sur Vercel
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres:Ilovegaming21@db.dmmtxstoystqampadggp.supabase.co:5432/postgres?sslmode=require&connect_timeout=10";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -30,7 +30,7 @@ pool.connect((err) => {
     if (err) {
         console.error("❌ Erreur lors de la connexion à PostgreSQL :", err.message);
     } else {
-        console.log("🗄️ Connecté avec succès à la base de données PostgreSQL via le Pooler AWS.");
+        console.log("🗄️ Connecté avec succès à la base de données PostgreSQL via la Connexion Directe.");
     }
 });
 
@@ -367,7 +367,7 @@ app.post('/api/public/book', async (req, res) => {
 
         // 2. Notification au Client
         const clientSubject = emailLang === 'en' ? "⏳ Booking request received" : "⏳ Demande de réservation reçue";
-        const clientHtml = generateEmailTemplate(emailLang === 'en' ? "Pending" : "En attente", "success", clientSubject, "Votre demande est en cours d'examen.", `<div><strong>Créneau :</strong> ${dateNice}</div>`);
+        const clientHtml = generateEmailTemplate(emailLang === 'en' ? "Pending" : "En attente", "success", clientSubject, "Votre demande is en cours d'examen.", `<div><strong>Créneau :</strong> ${dateNice}</div>`);
         sendNotificationEmail(clientEmail, clientSubject, clientHtml);
 
         return res.status(201).json({ success: true, message: "Rendez-vous enregistré avec succès !" });
