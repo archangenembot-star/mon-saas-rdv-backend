@@ -13,8 +13,9 @@ app.use(express.json());
 // -------------------------------------------------------------
 // INITIALISATION DE LA BASE DE DONNÉES POSTGRESQL (SUPABASE)
 // -------------------------------------------------------------
+// Modification directe ici avec le port 6543 pour contourner le blocage Vercel
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: "postgresql://postgres:Ilovegaming21@db.dmmtxstoystqampadggp.supabase.co:6543/postgres?pgbouncer=true",
     ssl: {
         rejectUnauthorized: false // Requis pour les connexions cloud sécurisées
     }
@@ -261,7 +262,7 @@ app.put('/api/appointments/:id', async (req, res) => {
 
         await pool.query("UPDATE appointments SET status = $1 WHERE id = $2", [updatedStatus, id]);
 
-        if (appointment.clientemail) { // PostgreSQL passe les noms de colonnes en minuscules par défaut
+        if (appointment.clientemail) { 
             const clientEmailField = appointment.clientemail;
             const clientNameField = appointment.clientname;
             const dateTimeField = appointment.datetime;
