@@ -47,14 +47,14 @@ const initDb = async () => {
             )
         `);
 
-        // Table des Rendez-vous
+        // Table des Rendez-vous (Utilisation des guillemets doubles pour préserver la casse "userId")
         await pool.query(`
             CREATE TABLE IF NOT EXISTS appointments (
                 id bigint PRIMARY KEY,
-                userId bigint,
-                clientName TEXT,
-                clientEmail TEXT,
-                dateTime TEXT,
+                "userId" bigint,
+                "clientName" TEXT,
+                "clientEmail" TEXT,
+                "dateTime" TEXT,
                 status TEXT
             )
         `);
@@ -83,7 +83,7 @@ async function initEmailTransporter() {
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
         transporter = nodemailer.createTransport({
             service: 'gmail', 
-            auth: {
+            sidebar: {
                 user: process.env.EMAIL_USER,
                 pass: process.env.EMAIL_PASS
             }
@@ -160,7 +160,7 @@ function generateEmailTemplate(badgeText, badgeColor, title, description, detail
 async function sendNotificationEmail(toEmail, subject, htmlContent) {
     try {
         if (!transporter) return;
-        let info = await transporter.sendMail({
+        await transporter.sendMail({
             from: '"SaaS Appointment Manager" <noreply@saasappointment.com>',
             to: toEmail,
             subject: subject,
@@ -209,7 +209,7 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// RECUPERER LES INFOS PROFIL UTILISATEUR
+// RECUPERER LES INFOS PROFIL UTILISATEUR via l'URL
 app.get('/api/user/:id', async (req, res) => {
     const { id } = req.params;
     try {
@@ -223,9 +223,10 @@ app.get('/api/user/:id', async (req, res) => {
     }
 });
 
-// COMPATIBILITÉ FRONTEND : Gère l'appel alternatif vers /api/profile
+// COMPATIBILITÉ FRONTEND : Gère l'appel alternatif vers /api/profile?userId=...
 app.get('/api/profile', async (req, res) => {
     const { userId } = req.query;
+    if (!userId) return res.status(400).json({ error: "userId requis." });
     try {
         const result = await pool.query("SELECT id, email, company FROM users WHERE id = $1", [userId]);
         if (result.rows.length === 0) return res.status(404).json({ error: "Utilisateur introuvable." });
@@ -258,12 +259,17 @@ app.post('/api/user/update', async (req, res) => {
 // ROUTE 3 : RÉCUPÉRER LES RENDEZ-VOUS
 app.get('/api/appointments', async (req, res) => {
     const { userId } = req.query;
+    if (!userId) return res.status(400).json({ error: "userId requis." });
     try {
-        const result = await pool.query("SELECT * FROM appointments WHERE userId = $1", [userId]);
+        // Double guillemet pour correspondre exactement à l'écriture SQL PostgreSQL
+        const result = await pool.query('SELECT id, "userId", "clientName", "clientEmail", "dateTime", status FROM appointments WHERE "userId" = $1', [userId]);
         const formattedRows = result.rows.map(row => ({
-            ...row,
             id: String(row.id),
-            userid: String(row.userid)
+            userId: String(row.userId),
+            clientName: row.clientName,
+            clientEmail: row.clientEmail,
+            dateTime: row.dateTime,
+            status: row.status
         }));
         return res.json(formattedRows);
     } catch (err) {
@@ -283,18 +289,14 @@ app.put('/api/appointments/:id', async (req, res) => {
     }
 
     try {
-        const result = await pool.query("SELECT * FROM appointments WHERE id = $1", [id]);
+        const result = await pool.query('SELECT id, "userId", "clientName", "clientEmail", "dateTime", status FROM appointments WHERE id = $1', [id]);
         const appointment = result.rows[0];
         if (!appointment) return res.status(404).json({ error: "Rendez-vous introuvable." });
 
         await pool.query("UPDATE appointments SET status = $1 WHERE id = $2", [updatedStatus, id]);
 
-        if (appointment.clientemail) { 
-            const clientEmailField = appointment.clientemail;
-            const clientNameField = appointment.clientname;
-            const dateTimeField = appointment.datetime;
-
-            const dateNice = formatEmailDate(dateTimeField, emailLang);
+        if (appointment.clientEmail) { 
+            const dateNice = formatEmailDate(appointment.dateTime, emailLang);
             let clientHtml;
             let emailSubject;
 
@@ -303,7 +305,7 @@ app.put('/api/appointments/:id', async (req, res) => {
                 const desc = emailLang === 'en' ? `Great news! Your booking request has been accepted.` : `Le commerçant a accepté votre rendez-vous.`;
                 const details = `
                     <div style="font-size: 14px; color: #cbd5e1; margin-bottom: 8px;"><strong>Date :</strong> ${dateNice}</div>
-                    <div style="font-size: 14px; color: #cbd5e1; margin-bottom: 8px;"><strong>Client :</strong> ${clientNameField}</div>
+                    <div style="font-size: 14px; color: #cbd5e1; margin-bottom: 8px;"><strong>Client :</strong> ${appointment.clientName}</div>
                 `;
                 clientHtml = generateEmailTemplate(emailLang === 'en' ? "Confirmed" : "Confirmé", "success", emailSubject, desc, details);
             } else {
@@ -312,7 +314,7 @@ app.put('/api/appointments/:id', async (req, res) => {
                 const details = `<div style="font-size: 14px; color: #cbd5e1;"><strong>Slot :</strong> ${dateNice}</div>`;
                 clientHtml = generateEmailTemplate(emailLang === 'en' ? "Declined" : "Décliné", "error", emailSubject, desc, details);
             }
-            sendNotificationEmail(clientEmailField, emailSubject, clientHtml);
+            sendNotificationEmail(appointment.clientEmail, emailSubject, clientHtml);
         }
         return res.json({ id: String(id), status: updatedStatus });
     } catch (err) {
@@ -345,7 +347,7 @@ app.post('/api/public/book', async (req, res) => {
 
     try {
         await pool.query(
-            `INSERT INTO appointments (id, userId, clientName, clientEmail, dateTime, status) VALUES ($1, $2, $3, $4, $5, $6)`,
+            `INSERT INTO appointments (id, "userId", "clientName", "clientEmail", "dateTime", status) VALUES ($1, $2, $3, $4, $5, $6)`,
             [apptId, userId, clientName, clientEmail, dateTime, status]
         );
 
