@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
-const { Client } = require('pg'); // 🎯 Changement : On utilise Client au lieu de Pool pour maîtriser la connexion unique
+const { Client } = require('pg'); 
 require('dotenv').config(); 
 
 BigInt.prototype.toJSON = function() { return this.toString(); };
@@ -15,22 +15,23 @@ app.use(cors());
 app.use(express.json());
 
 // -------------------------------------------------------------
-// GESTION DE LA CONNEXION UNIQUE POSTGRESQL (ÉVITE LE SURREMPLISSAGE DU POOL)
+// CONFIGURATION DE LA CONNEXION UNIQUE AVEC SSL CONFIGURÉ
 // -------------------------------------------------------------
 const client = new Client({
     connectionString: connectionString,
-    ssl: false,
-    connectionTimeoutMillis: 5000 // Évite de bloquer indéfiniment la requête en cas de latence
+    ssl: {
+        rejectUnauthorized: false // 🎯 CORRECTIF CRITIQUE : Autorise le certificat auto-signé de Supabase sur Vercel
+    },
+    connectionTimeoutMillis: 10000 // Augmenté à 10s pour laisser le temps d'établir la liaison sécurisée
 });
 
-// Connexion globale unique
 let isConnected = false;
 async function connectDatabase() {
     if (!isConnected) {
         try {
             await client.connect();
             isConnected = true;
-            console.log("🗄️ Connexion à PostgreSQL opérationnelle en mode client unique.");
+            console.log("🗄️ Connexion sécurisée à PostgreSQL opérationnelle.");
         } catch (err) {
             console.error("❌ Erreur de connexion PostgreSQL :", err.message);
         }
