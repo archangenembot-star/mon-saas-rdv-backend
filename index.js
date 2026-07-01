@@ -1,10 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
-const { Pool } = require('pg'); 
+const { Client } = require('pg'); // 🎯 Changement : On utilise Client au lieu de Pool pour maîtriser la connexion unique
 require('dotenv').config(); 
 
-// 🎯 CORRECTIF : Permet à JSON.stringify de gérer les types BigInt retournés par PostgreSQL sans planter
 BigInt.prototype.toJSON = function() { return this.toString(); };
 
 const connectionString = process.env.DATABASE_URL || "postgresql://postgres.dmmtxstoystqampadggp:Ilovegaming21@aws-0-eu-west-1.pooler.supabase.com:5432/postgres";
@@ -16,22 +15,34 @@ app.use(cors());
 app.use(express.json());
 
 // -------------------------------------------------------------
-// INITIALISATION DE LA BASE DE DONNÉES POSTGRESQL (SUPABASE)
+// GESTION DE LA CONNEXION UNIQUE POSTGRESQL (ÉVITE LE SURREMPLISSAGE DU POOL)
 // -------------------------------------------------------------
-const pool = new Pool({
+const client = new Client({
     connectionString: connectionString,
-    ssl: false // Désactive la vérification stricte du certificat pour éviter les blocages de chaîne SSL sur Vercel
+    ssl: false,
+    connectionTimeoutMillis: 5000 // Évite de bloquer indéfiniment la requête en cas de latence
 });
 
-// Validation de la connexion au démarrage
-pool.query('SELECT NOW()')
-    .then(() => console.log("🗄️ Connexion à PostgreSQL opérationnelle."))
-    .catch(err => console.error("❌ Erreur de connexion PostgreSQL :", err.message));
+// Connexion globale unique
+let isConnected = false;
+async function connectDatabase() {
+    if (!isConnected) {
+        try {
+            await client.connect();
+            isConnected = true;
+            console.log("🗄️ Connexion à PostgreSQL opérationnelle en mode client unique.");
+        } catch (err) {
+            console.error("❌ Erreur de connexion PostgreSQL :", err.message);
+        }
+    }
+}
+connectDatabase();
 
-// Création automatique des tables avec double-guillemets pour fixer la casse
+// Création automatique des tables
 const initDb = async () => {
     try {
-        await pool.query(`
+        await connectDatabase();
+        await client.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id bigint PRIMARY KEY,
                 email TEXT UNIQUE,
@@ -40,7 +51,7 @@ const initDb = async () => {
             )
         `);
 
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS appointments (
                 id bigint PRIMARY KEY,
                 "userId" bigint,
@@ -50,15 +61,6 @@ const initDb = async () => {
                 status TEXT
             )
         `);
-
-        // Utilisateur de test par défaut
-        const res = await pool.query("SELECT COUNT(*) as count FROM users");
-        if (parseInt(res.rows[0].count) === 0) {
-            await pool.query(
-                "INSERT INTO users (id, email, password, company) VALUES ($1, $2, $3, $4)", 
-                [1, "merchant-test@saas.com", "123", "SaaS Partner Ltd."]
-            );
-        }
     } catch (err) {
         console.error("❌ Erreur lors de l'initialisation des tables :", err.message);
     }
@@ -144,7 +146,8 @@ async function sendNotificationEmail(toEmail, subject, htmlContent) {
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     try {
-        const result = await pool.query("SELECT * FROM users WHERE LOWER(email) = LOWER($1)", [email]);
+        await connectDatabase();
+        const result = await client.query("SELECT * FROM users WHERE LOWER(email) = LOWER($1)", [email]);
         const user = result.rows[0];
         if (!user || user.password !== password) {
             return res.status(400).json({ error: "Identifiants invalides." });
@@ -161,7 +164,8 @@ app.post('/api/register', async (req, res) => {
     if (!email || !password) return res.status(400).json({ error: "Champs manquants." });
     const userId = Date.now(); 
     try {
-        await pool.query("INSERT INTO users (id, email, password, company) VALUES ($1, $2, $3, $4)", [userId, email, password, ""]);
+        await connectDatabase();
+        await client.query("INSERT INTO users (id, email, password, company) VALUES ($1, $2, $3, $4)", [userId, email, password, ""]);
         return res.status(201).json({ id: String(userId), email });
     } catch (err) {
         if (err.message.includes("unique") || err.code === '23505') {
@@ -171,12 +175,13 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// 🎯 REQUÊTE SÉCURISÉE POUR LE PROFILE
+// ROUTE : PROFIL
 const handleProfileGet = async (req, res) => {
     const userId = req.query.userId || req.params.id;
     if (!userId) return res.status(400).json({ error: "userId requis." });
     try {
-        const result = await pool.query("SELECT id, email, company FROM users WHERE id = $1", [userId]);
+        await connectDatabase();
+        const result = await client.query("SELECT id, email, company FROM users WHERE id = $1", [userId]);
         if (result.rows.length === 0) return res.status(404).json({ error: "Utilisateur introuvable." });
         
         const user = result.rows[0];
@@ -194,10 +199,11 @@ app.post('/api/user/update', async (req, res) => {
     const { userId, company, password } = req.body;
     if (!userId) return res.status(400).json({ error: "ID Utilisateur manquant." });
     try {
+        await connectDatabase();
         if (password) {
-            await pool.query("UPDATE users SET company = $1, password = $2 WHERE id = $3", [company, password, userId]);
+            await client.query("UPDATE users SET company = $1, password = $2 WHERE id = $3", [company, password, userId]);
         } else {
-            await pool.query("UPDATE users SET company = $1 WHERE id = $2", [company, userId]);
+            await client.query("UPDATE users SET company = $1 WHERE id = $2", [company, userId]);
         }
         return res.json({ success: true, message: "Profil mis à jour." });
     } catch (err) {
@@ -205,7 +211,7 @@ app.post('/api/user/update', async (req, res) => {
     }
 });
 
-// 🎯 REQUÊTE SÉCURISÉE : CRÉER UN RENDEZ-VOUS
+// CRÉER UN RENDEZ-VOUS
 app.post('/api/appointments', async (req, res) => {
     const { userId, clientName, clientEmail, dateTime, status } = req.body;
     if (!userId || !clientName || !dateTime) return res.status(400).json({ error: "Champs manquants." });
@@ -214,7 +220,8 @@ app.post('/api/appointments', async (req, res) => {
     const finalStatus = status || "Pending";
 
     try {
-        await pool.query(
+        await connectDatabase();
+        await client.query(
             `INSERT INTO appointments (id, "userId", "clientName", "clientEmail", "dateTime", status) VALUES ($1, $2, $3, $4, $5, $6)`,
             [apptId, userId, clientName, clientEmail || null, dateTime, finalStatus]
         );
@@ -224,12 +231,13 @@ app.post('/api/appointments', async (req, res) => {
     }
 });
 
-// 🎯 REQUÊTE SÉCURISÉE : RÉCUPÉRER LES RENDEZ-VOUS
+// RÉCUPÉRER LES RENDEZ-VOUS
 app.get('/api/appointments', async (req, res) => {
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: "userId requis." });
     try {
-        const result = await pool.query('SELECT id, "userId", "clientName", "clientEmail", "dateTime", status FROM appointments WHERE "userId" = $1', [userId]);
+        await connectDatabase();
+        const result = await client.query('SELECT id, "userId", "clientName", "clientEmail", "dateTime", status FROM appointments WHERE "userId" = $1', [userId]);
         const formattedRows = result.rows.map(row => ({
             id: String(row.id),
             userId: String(row.userId),
@@ -252,11 +260,12 @@ app.put('/api/appointments/:id', async (req, res) => {
     const emailLang = lang === 'en' ? 'en' : 'fr';
 
     try {
-        const result = await pool.query('SELECT id, "userId", "clientName", "clientEmail", "dateTime", status FROM appointments WHERE id = $1', [id]);
+        await connectDatabase();
+        const result = await client.query('SELECT id, "userId", "clientName", "clientEmail", "dateTime", status FROM appointments WHERE id = $1', [id]);
         const appointment = result.rows[0];
         if (!appointment) return res.status(404).json({ error: "Rendez-vous introuvable." });
 
-        await pool.query("UPDATE appointments SET status = $1 WHERE id = $2", [updatedStatus, id]);
+        await client.query("UPDATE appointments SET status = $1 WHERE id = $2", [updatedStatus, id]);
 
         if (appointment.clientEmail) { 
             const dateNice = formatEmailDate(appointment.dateTime, emailLang);
@@ -283,7 +292,8 @@ app.put('/api/appointments/:id', async (req, res) => {
 app.delete('/api/appointments/:id', async (req, res) => {
     const { id } = req.params;
     try {
-        await pool.query("DELETE FROM appointments WHERE id = $1", [id]);
+        await connectDatabase();
+        await client.query("DELETE FROM appointments WHERE id = $1", [id]);
         return res.json({ success: true });
     } catch (err) {
         return res.status(500).json({ error: err.message });
@@ -292,14 +302,13 @@ app.delete('/api/appointments/:id', async (req, res) => {
 
 // FORMULAIRE PUBLIC POUR LES CLIENTS
 app.post('/api/public/book', async (req, res) => {
-    const { userId, clientName, clientEmail, dateTime, lang } = req.body;
-    const emailLang = lang === 'en' ? 'en' : 'fr';
-
+    const { userId, clientName, clientEmail, dateTime } = req.body;
     if (!userId || !clientName || !clientEmail || !dateTime) return res.status(400).json({ error: "Champs manquants." });
     const apptId = Date.now(); 
 
     try {
-        await pool.query(
+        await connectDatabase();
+        await client.query(
             `INSERT INTO appointments (id, "userId", "clientName", "clientEmail", "dateTime", status) VALUES ($1, $2, $3, $4, $5, $6)`,
             [apptId, userId, clientName, clientEmail, dateTime, "Pending"]
         );
