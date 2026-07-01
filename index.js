@@ -23,15 +23,12 @@ app.use(express.json());
 // INITIALISATION DE LA BASE DE DONNÉES POSTGRESQL (SUPABASE)
 // -------------------------------------------------------------
 const pool = new Pool({
-    connectionString: connectionString,
+    connectionString: process.env.DATABASE_URL, // Ta variable Vercel
     ssl: {
-        rejectUnauthorized: false // 🛠️ Accepte les certificats auto-signés (Régle l'erreur 500 sur Vercel)
+        rejectUnauthorized: false // 👈 C'EST LA CLÉ ! Cela résout l'erreur 'self-signed certificate'
     },
-    max: 4,                       
-    idleTimeoutMillis: 15000,     
-    connectionTimeoutMillis: 10000 
+    connectionTimeoutMillis: 10000 // Évite les coupures trop rapides
 });
-
 // Validation rapide de la connexion au démarrage
 pool.query('SELECT NOW()')
     .then(() => console.log("🗄️ Connexion à PostgreSQL opérationnelle via le Pooler AWS Supabase (Port 5432)."))
