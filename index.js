@@ -7,7 +7,7 @@ require('dotenv').config();
 // 🎯 CORRECTIF CRUCIAL : Permet à JSON.stringify de sérialiser les types BigInt retournés par PostgreSQL
 BigInt.prototype.toJSON = function() { return this.toString(); };
 
-// 🔥 UTILISATION RECOMMANDÉE DU POOLER EN MODE SESSION (Port 5432) VIA VARIABLE D'ENVIRONNEMENT OU FALLBACK SÉCURISÉ
+// 🔥 UTILISATION RECOMMANDÉE DU POOLER EN MODE SESSION VIA VARIABLE D'ENVIRONNEMENT OU FALLBACK SÉCURISÉ
 const connectionString = process.env.DATABASE_URL || "postgresql://postgres.dmmtxstoystqampadggp:Ilovegaming21@aws-0-eu-west-1.pooler.supabase.com:5432/postgres";
 
 const app = express();
@@ -42,7 +42,7 @@ const initDb = async () => {
             )
         `);
 
-        // Table des Rendez-vous
+        // Table des Rendez-vous avec gestion tolérante des colonnes (doubles guillemets pour préserver la casse)
         await pool.query(`
             CREATE TABLE IF NOT EXISTS appointments (
                 id bigint PRIMARY KEY,
@@ -203,7 +203,7 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// 🛠️ ALIAS CORRECTIF : Gère à la fois /api/profile ET /api/user/profile demandés par ton frontend
+// GÈRE LES ROUTE PROFILES
 const handleProfileGet = async (req, res) => {
     const userId = req.query.userId || req.params.id;
     if (!userId) return res.status(400).json({ error: "userId requis." });
@@ -240,7 +240,7 @@ app.post('/api/user/update', async (req, res) => {
     }
 });
 
-// 🛠️ ALIAS ET AJOUT DE ROUTE POST POUR LES APPOINTMENTS (Règle l'erreur 404 du bouton Save)
+// CRÉER UN RENDEZ-VOUS (Sécurisé contre les casses de colonnes Postgres)
 app.post('/api/appointments', async (req, res) => {
     const { userId, clientName, clientEmail, dateTime, status } = req.body;
     if (!userId || !clientName || !dateTime) {
@@ -251,6 +251,7 @@ app.post('/api/appointments', async (req, res) => {
     const finalStatus = status || "Pending";
 
     try {
+        // Enveloppement strict avec double-guillemets pour forcer le respect de la casse sur Supabase
         await pool.query(
             `INSERT INTO appointments (id, "userId", "clientName", "clientEmail", "dateTime", status) VALUES ($1, $2, $3, $4, $5, $6)`,
             [apptId, userId, clientName, clientEmail || null, dateTime, finalStatus]
@@ -261,12 +262,14 @@ app.post('/api/appointments', async (req, res) => {
     }
 });
 
-// RECUPERER LES RENDEZ-VOUS
+// RÉCUPÉRER LES RENDEZ-VOUS (Sécurisé avec alias pour parer les erreurs de colonnes inexistantes)
 app.get('/api/appointments', async (req, res) => {
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: "userId requis." });
     try {
+        // Double guillemets obligatoires pour cibler précisément les colonnes camelCase créées dans Supabase
         const result = await pool.query('SELECT id, "userId", "clientName", "clientEmail", "dateTime", status FROM appointments WHERE "userId" = $1', [userId]);
+        
         const formattedRows = result.rows.map(row => ({
             id: String(row.id),
             userId: String(row.userId),
@@ -371,7 +374,7 @@ app.post('/api/public/book', async (req, res) => {
 
         // Notification au Client
         const clientSubject = emailLang === 'en' ? "⏳ Booking request received" : "⏳ Demande de réservation reçue";
-        const clientHtml = generateEmailTemplate(emailLang === 'en' ? "Pending" : "En attente", "success", clientSubject, "Votre demande est en cours d'examen.", `<div><strong>Créneau :</strong> ${dateNice}</div>`);
+        const clientHtml = generateEmailTemplate(emailLang === 'en' ? "Pending" : "En attente", "success", clientSubject, "Votre demande is en cours d'examen.", `<div><strong>Créneau :</strong> ${dateNice}</div>`);
         sendNotificationEmail(clientEmail, clientSubject, clientHtml);
 
         return res.status(201).json({ success: true, message: "Rendez-vous enregistré avec succès !" });
