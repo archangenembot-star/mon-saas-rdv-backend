@@ -7,8 +7,8 @@ require('dotenv').config();
 // 🎯 CORRECTIF CRUCIAL : Permet à JSON.stringify de sérialiser les types BigInt retournés par PostgreSQL
 BigInt.prototype.toJSON = function() { return this.toString(); };
 
-// 🔥 CONFIGURATION EN DUR DU TRANSACTION POOLER (Avec l'option pgbouncer=true requise pour Vercel)
-const connectionString = "postgresql://postgres.dmmtxstoystqampadggp:Ilovegaming21@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true";
+// 🔥 CONFIGURATION EN DUR DU POOLER EN MODE SESSION
+const connectionString = "postgresql://postgres.dmmtxstoystqampadggp:Ilovegaming21@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?sslmode=require";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
