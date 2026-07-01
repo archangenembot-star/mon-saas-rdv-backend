@@ -19,16 +19,11 @@ app.use(express.json());
 // -------------------------------------------------------------
 // INITIALISATION DE LA BASE DE DONNÉES POSTGRESQL (SUPABASE)
 // -------------------------------------------------------------
-// -------------------------------------------------------------
-// INITIALISATION DE LA BASE DE DONNÉES POSTGRESQL (SUPABASE)
-// -------------------------------------------------------------
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL, // Ta variable Vercel
-    ssl: {
-        rejectUnauthorized: false // 👈 C'EST LA CLÉ ! Cela résout l'erreur 'self-signed certificate'
-    },
-    connectionTimeoutMillis: 10000 // Évite les coupures trop rapides
+    connectionString: connectionString,
+    ssl: false // ❌ Désactive la vérification SSL pour correspondre à la configuration actuelle de Supabase et éviter les timeouts
 });
+
 // Validation rapide de la connexion au démarrage
 pool.query('SELECT NOW()')
     .then(() => console.log("🗄️ Connexion à PostgreSQL opérationnelle via le Pooler AWS Supabase (Port 5432)."))
@@ -217,7 +212,6 @@ const handleProfileGet = async (req, res) => {
         if (result.rows.length === 0) return res.status(404).json({ error: "Utilisateur introuvable." });
         
         const user = result.rows[0];
-        // Renvoie à la fois "company" et "businessName" pour satisfaire ton script dictionnaire frontend
         return res.json({ id: String(user.id), email: user.email, company: user.company, businessName: user.company });
     } catch (err) {
         return res.status(500).json({ error: err.message });
