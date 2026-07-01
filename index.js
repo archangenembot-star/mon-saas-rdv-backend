@@ -19,14 +19,17 @@ app.use(express.json());
 // -------------------------------------------------------------
 // INITIALISATION DE LA BASE DE DONNÉES POSTGRESQL (SUPABASE)
 // -------------------------------------------------------------
+// -------------------------------------------------------------
+// INITIALISATION DE LA BASE DE DONNÉES POSTGRESQL (SUPABASE)
+// -------------------------------------------------------------
 const pool = new Pool({
     connectionString: connectionString,
     ssl: {
-        rejectUnauthorized: false // 🛠️ FORCE L'ACCEPTATION DU CERTIFICAT SUR VERCEL (Régle l'erreur self-signed certificate)
+        rejectUnauthorized: false // 🛠️ Accepte les certificats auto-signés (Régle l'erreur 500 sur Vercel)
     },
-    max: 4,                       // Limite de connexions simultanées pour environnement serverless
-    idleTimeoutMillis: 15000,     // Ferme automatiquement les connexions inactives après 15s
-    connectionTimeoutMillis: 10000 // Évite les coupures prématurées
+    max: 4,                       
+    idleTimeoutMillis: 15000,     
+    connectionTimeoutMillis: 10000 
 });
 
 // Validation rapide de la connexion au démarrage
