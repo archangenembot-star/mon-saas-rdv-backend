@@ -7,8 +7,8 @@ require('dotenv').config();
 // 🎯 CORRECTIF CRUCIAL : Permet à JSON.stringify de sérialiser les types BigInt retournés par PostgreSQL
 BigInt.prototype.toJSON = function() { return this.toString(); };
 
-// 🔥 CONFIGURATION EN DUR DU POOLER EN MODE SESSION
-const connectionString = "postgresql://postgres.dmmtxstoystqampadggp:Ilovegaming21@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?sslmode=require";
+// 🔥 CONFIGURATION EN DUR DU POOLER EN MODE SESSION (Avec l'option SSL corrigée)
+const connectionString = "postgresql://postgres.dmmtxstoystqampadggp:Ilovegaming21@aws-0-eu-west-1.pooler.supabase.com:6543/postgres";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -22,11 +22,11 @@ app.use(express.json());
 const pool = new Pool({
     connectionString: connectionString,
     ssl: {
-        rejectUnauthorized: false // Requis pour les connexions cloud sécurisées
+        rejectUnauthorized: false // 🛠️ FORCE L'ACCEPTATION DU CERTIFICAT SUPABASE SUR VERCEL
     },
     max: 4,                       // Limite de connexions simultanées pour éviter de saturer le pooler
     idleTimeoutMillis: 15000,     // Ferme automatiquement les connexions inactives après 15s
-    connectionTimeoutMillis: 5000 // Coupe après 5s max en cas de coupure réseau
+    connectionTimeoutMillis: 10000 // Augmenté à 10s pour éviter les coupures prématurées
 });
 
 // Validation rapide de la connexion au démarrage
