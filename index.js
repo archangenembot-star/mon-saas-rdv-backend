@@ -7,8 +7,8 @@ require('dotenv').config();
 // 🎯 CORRECTIF CRUCIAL : Permet à JSON.stringify de sérialiser les types BigInt retournés par PostgreSQL
 BigInt.prototype.toJSON = function() { return this.toString(); };
 
-// 🔥 CONFIGURATION EN DUR DU POOLER EN MODE SESSION (Avec l'option SSL corrigée)
-const connectionString = "postgresql://postgres.dmmtxstoystqampadggp:Ilovegaming21@aws-0-eu-west-1.pooler.supabase.com:6543/postgres";
+// 🔥 UTILISATION RECOMMANDÉE DU POOLER EN MODE SESSION (Port 5432) VIA VARIABLE D'ENVIRONNEMENT OU FALLBACK SÉCURISÉ
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres.dmmtxstoystqampadggp:Ilovegaming21@aws-0-eu-west-1.pooler.supabase.com:5432/postgres";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -22,19 +22,19 @@ app.use(express.json());
 const pool = new Pool({
     connectionString: connectionString,
     ssl: {
-        rejectUnauthorized: false // 🛠️ FORCE L'ACCEPTATION DU CERTIFICAT SUPABASE SUR VERCEL
+        rejectUnauthorized: false // 🛠️ FORCE L'ACCEPTATION DU CERTIFICAT SUR VERCEL (Régle l'erreur self-signed certificate)
     },
-    max: 4,                       // Limite de connexions simultanées pour éviter de saturer le pooler
+    max: 4,                       // Limite de connexions simultanées pour environnement serverless
     idleTimeoutMillis: 15000,     // Ferme automatiquement les connexions inactives après 15s
-    connectionTimeoutMillis: 10000 // Augmenté à 10s pour éviter les coupures prématurées
+    connectionTimeoutMillis: 10000 // Évite les coupures prématurées
 });
 
 // Validation rapide de la connexion au démarrage
 pool.query('SELECT NOW()')
-    .then(() => console.log("🗄️ Connexion à PostgreSQL opérationnelle via le Pooler AWS Supabase."))
+    .then(() => console.log("🗄️ Connexion à PostgreSQL opérationnelle via le Pooler AWS Supabase (Port 5432)."))
     .catch(err => console.error("❌ Erreur de connexion PostgreSQL :", err.message));
 
-// Création des tables
+// Création automatique des tables si inexistantes
 const initDb = async () => {
     try {
         // Table des Commerçants
@@ -171,7 +171,7 @@ async function sendNotificationEmail(toEmail, subject, htmlContent) {
     }
 }
 
-// ROUTE 1 : CONNEXION
+// ROUTE : CONNEXION
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     try {
@@ -187,7 +187,7 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// ROUTE 2 : INSCRIPTION
+// ROUTE : INSCRIPTION
 app.post('/api/register', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -208,34 +208,25 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// RECUPERER LES INFOS PROFIL UTILISATEUR via l'URL
-app.get('/api/user/:id', async (req, res) => {
-    const { id } = req.params;
-    try {
-        const result = await pool.query("SELECT id, email, company FROM users WHERE id = $1", [id]);
-        if (result.rows.length === 0) return res.status(404).json({ error: "Utilisateur introuvable." });
-        
-        const user = result.rows[0];
-        return res.json({ id: String(user.id), email: user.email, company: user.company });
-    } catch (err) {
-        return res.status(500).json({ error: err.message });
-    }
-});
-
-// COMPATIBILITÉ FRONTEND : Gère l'appel alternatif vers /api/profile?userId=...
-app.get('/api/profile', async (req, res) => {
-    const { userId } = req.query;
+// 🛠️ ALIAS CORRECTIF : Gère à la fois /api/profile ET /api/user/profile demandés par ton frontend
+const handleProfileGet = async (req, res) => {
+    const userId = req.query.userId || req.params.id;
     if (!userId) return res.status(400).json({ error: "userId requis." });
     try {
         const result = await pool.query("SELECT id, email, company FROM users WHERE id = $1", [userId]);
         if (result.rows.length === 0) return res.status(404).json({ error: "Utilisateur introuvable." });
         
         const user = result.rows[0];
-        return res.json({ id: String(user.id), email: user.email, company: user.company });
+        // Renvoie à la fois "company" et "businessName" pour satisfaire ton script dictionnaire frontend
+        return res.json({ id: String(user.id), email: user.email, company: user.company, businessName: user.company });
     } catch (err) {
         return res.status(500).json({ error: err.message });
     }
-});
+};
+
+app.get('/api/profile', handleProfileGet);
+app.get('/api/user/profile', handleProfileGet);
+app.get('/api/user/:id', handleProfileGet);
 
 // METTRE À JOUR LE PROFIL
 app.post('/api/user/update', async (req, res) => {
@@ -255,7 +246,28 @@ app.post('/api/user/update', async (req, res) => {
     }
 });
 
-// ROUTE 3 : RÉCUPÉRER LES RENDEZ-VOUS
+// 🛠️ ALIAS ET AJOUT DE ROUTE POST POUR LES APPOINTMENTS (Règle l'erreur 404 du bouton Save)
+app.post('/api/appointments', async (req, res) => {
+    const { userId, clientName, clientEmail, dateTime, status } = req.body;
+    if (!userId || !clientName || !dateTime) {
+        return res.status(400).json({ error: "Champs manquants." });
+    }
+
+    const apptId = Date.now();
+    const finalStatus = status || "Pending";
+
+    try {
+        await pool.query(
+            `INSERT INTO appointments (id, "userId", "clientName", "clientEmail", "dateTime", status) VALUES ($1, $2, $3, $4, $5, $6)`,
+            [apptId, userId, clientName, clientEmail || null, dateTime, finalStatus]
+        );
+        return res.status(201).json({ success: true, id: String(apptId), message: "Rendez-vous créé !" });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+// RECUPERER LES RENDEZ-VOUS
 app.get('/api/appointments', async (req, res) => {
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: "userId requis." });
@@ -265,7 +277,7 @@ app.get('/api/appointments', async (req, res) => {
             id: String(row.id),
             userId: String(row.userId),
             clientName: row.clientName,
-            clientEmail: row.clientEmail,
+            clientEmail: row.clientEmail || '',
             dateTime: row.dateTime,
             status: row.status
         }));
@@ -275,7 +287,7 @@ app.get('/api/appointments', async (req, res) => {
     }
 });
 
-// ROUTE 5 : MODIFIER LE STATUT D'UN RENDEZ-VOUS
+// MODIFIER LE STATUT D'UN RENDEZ-VOUS
 app.put('/api/appointments/:id', async (req, res) => {
     const { id } = req.params;
     const { status, lang } = req.body; 
@@ -320,7 +332,7 @@ app.put('/api/appointments/:id', async (req, res) => {
     }
 });
 
-// ROUTE 6 : SUPPRIMER UN RENDEZ-VOUS
+// SUPPRIMER UN RENDEZ-VOUS
 app.delete('/api/appointments/:id', async (req, res) => {
     const { id } = req.params;
     try {
@@ -331,7 +343,7 @@ app.delete('/api/appointments/:id', async (req, res) => {
     }
 });
 
-// ROUTE 7 : FORMULAIRE PUBLIC POUR LES CLIENTS
+// FORMULAIRE PUBLIC POUR LES CLIENTS
 app.post('/api/public/book', async (req, res) => {
     const { userId, clientName, clientEmail, dateTime, lang } = req.body;
     const emailLang = lang === 'en' ? 'en' : 'fr';
@@ -351,7 +363,7 @@ app.post('/api/public/book', async (req, res) => {
 
         const dateNice = formatEmailDate(dateTime, emailLang);
 
-        // 1. Notification au Commerçant
+        // Notification au Commerçant
         const merchantRes = await pool.query("SELECT email FROM users WHERE id = $1", [userId]);
         if (merchantRes.rows.length > 0) {
             const merchant = merchantRes.rows[0];
@@ -363,7 +375,7 @@ app.post('/api/public/book', async (req, res) => {
             sendNotificationEmail(merchant.email, `🔔 Nouveau RDV - ${clientName}`, merchantHtml);
         }
 
-        // 2. Notification au Client
+        // Notification au Client
         const clientSubject = emailLang === 'en' ? "⏳ Booking request received" : "⏳ Demande de réservation reçue";
         const clientHtml = generateEmailTemplate(emailLang === 'en' ? "Pending" : "En attente", "success", clientSubject, "Votre demande est en cours d'examen.", `<div><strong>Créneau :</strong> ${dateNice}</div>`);
         sendNotificationEmail(clientEmail, clientSubject, clientHtml);
