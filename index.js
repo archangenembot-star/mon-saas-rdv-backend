@@ -14,7 +14,7 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// 🎯 FONCTION DE CONNEXION ÉPHÉMÈRE (Idéal pour Vercel / Serverless)
+// FONCTION DE CONNEXION ÉPHÉMÈRE
 async function executeQuery(queryText, params = []) {
     const client = new Client({
         connectionString: connectionString,
@@ -24,7 +24,7 @@ async function executeQuery(queryText, params = []) {
     try {
         await client.connect();
         const result = await client.query(queryText, params);
-        await client.end(); // Ferme proprement après la requête
+        await client.end(); 
         return result;
     } catch (err) {
         try { await client.end(); } catch(e){}
@@ -197,10 +197,19 @@ app.post('/api/user/update', async (req, res) => {
     }
 });
 
-// 🎯 CORRECTIF APPOINTMENTS POST (Renvoie exactement l'objet attendu)
+// 🎯 CORRECTIF AVANCÉ : Extraction et fallback automatique du userId
 app.post('/api/appointments', async (req, res) => {
-    const { userId, clientName, clientEmail, dateTime, status } = req.body;
-    if (!userId || !clientName || !dateTime) return res.status(400).json({ error: "Champs manquants." });
+    const { clientName, clientEmail, dateTime, status, user } = req.body;
+    
+    // Détection adaptative de l'ID utilisateur (gère req.body.userId, req.body.userid, ou l'objet user s'il est imbriqué)
+    let finalUserId = req.body.userId || req.body.userid;
+    if (!finalUserId && user) {
+        finalUserId = user.id || user.userId;
+    }
+
+    if (!finalUserId || !clientName || !dateTime) {
+        return res.status(400).json({ error: "Champs manquants. L'ID utilisateur (userId) est requis." });
+    }
 
     const apptId = Date.now();
     const finalStatus = status || "Pending";
@@ -208,11 +217,11 @@ app.post('/api/appointments', async (req, res) => {
     try {
         await executeQuery(
             `INSERT INTO appointments (id, "userId", "clientName", "clientEmail", "dateTime", status) VALUES ($1, $2, $3, $4, $5, $6)`,
-            [apptId, userId, clientName, clientEmail || null, dateTime, finalStatus]
+            [apptId, finalUserId, clientName, clientEmail || null, dateTime, finalStatus]
         );
         return res.status(201).json({ 
             id: String(apptId), 
-            userId: String(userId), 
+            userId: String(finalUserId), 
             clientName, 
             clientEmail: clientEmail || '', 
             dateTime, 
