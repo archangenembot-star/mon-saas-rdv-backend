@@ -15,14 +15,14 @@ app.use(cors());
 app.use(express.json());
 
 // -------------------------------------------------------------
-// CONFIGURATION DE LA CONNEXION UNIQUE AVEC SSL CONFIGURÉ
+// CONFIGURATION DU CLIENT UNIQUE POSTGRESQL
 // -------------------------------------------------------------
 const client = new Client({
     connectionString: connectionString,
     ssl: {
-        rejectUnauthorized: false // 🎯 CORRECTIF CRITIQUE : Autorise le certificat auto-signé de Supabase sur Vercel
+        rejectUnauthorized: false 
     },
-    connectionTimeoutMillis: 10000 // Augmenté à 10s pour laisser le temps d'établir la liaison sécurisée
+    connectionTimeoutMillis: 10000 
 });
 
 let isConnected = false;
@@ -37,7 +37,6 @@ async function connectDatabase() {
         }
     }
 }
-connectDatabase();
 
 // Création automatique des tables
 const initDb = async () => {
