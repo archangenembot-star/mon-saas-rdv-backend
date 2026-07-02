@@ -394,7 +394,7 @@
 
 <script>
     // ⚠️ METS ICI TON URL DE PRODUCTION RAILWAY (ex: 'https://mon-projet-production.up.railway.app')
-   const BASE_URL = 'https://mon-saas-rdv-backend-production.up.railway.app';
+    const BASE_URL = 'https://mon-saas-rdv-backend-production.up.railway.app';
 
     const sessionData = localStorage.getItem('saas_user') || localStorage.getItem('userId');
     if (!sessionData) {
@@ -493,12 +493,13 @@
         document.getElementById('langSelect').value = currentLang;
     }
 
+    // Ici la fonction a été corrigée pour inclure le chemin complet GitHub Pages
     function generateBookingUrl() {
-    if (userId) {
-        const currentOrigin = window.location.origin;
-        document.getElementById('bookingUrlField').value = `${currentOrigin}/mon-saas-rdv-backend/frontend/booking.html?user=${userId}`;
+        if (userId) {
+            const currentOrigin = window.location.origin;
+            document.getElementById('bookingUrlField').value = `${currentOrigin}/mon-saas-rdv-backend/frontend/booking.html?user=${userId}`;
+        }
     }
-}
 
     window.copyBookingLink = function() {
         const t = translations[currentLang];
