@@ -1,32 +1,34 @@
 const express = require('express');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
-const { Pool } = require('pg'); // 🎯 REMPLACEMENT: On utilise Pool au lieu de Client
+const { Pool } = require('pg'); 
 require('dotenv').config(); 
 
 BigInt.prototype.toJSON = function() { return this.toString(); };
 
-// 🎯 SÉCURITÉ: On ne met plus le mot de passe en clair. Railway fournira process.env.DATABASE_URL
 const connectionString = process.env.DATABASE_URL;
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
+// 🎯 CORRECTION CORS : Autorise toutes les origines et requêtes de pré-vérification (Preflight)
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 
-// 🎯 OPTIMISATION: Création d'un Pool de connexions (parfait pour Railway)
 const pool = new Pool({
     connectionString: connectionString,
     ssl: { rejectUnauthorized: false },
     connectionTimeoutMillis: 5000,
-    max: 10 // Limite à 10 connexions simultanées maximum pour ne pas saturer Supabase
+    max: 10 
 });
 
-// FONCTION DE REQUÊTE OPTIMISÉE
 async function executeQuery(queryText, params = []) {
     try {
-        // Le pool gère automatiquement l'ouverture et la fermeture
         const result = await pool.query(queryText, params);
         return result;
     } catch (err) {
@@ -35,7 +37,6 @@ async function executeQuery(queryText, params = []) {
     }
 }
 
-// Initialisation des tables au démarrage
 const initDb = async () => {
     try {
         await executeQuery(`
@@ -63,9 +64,6 @@ const initDb = async () => {
 };
 initDb();
 
-// -------------------------------------------------------------
-// CONFIGURATION DE NODEMAILER
-// -------------------------------------------------------------
 let transporter;
 async function initEmailTransporter() {
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
@@ -202,7 +200,6 @@ app.post('/api/user/update', async (req, res) => {
 
 app.post('/api/appointments', async (req, res) => {
     const { clientName, clientEmail, dateTime, status, user } = req.body;
-    
     let finalUserId = req.body.userId || req.body.userid;
     if (!finalUserId && user) {
         finalUserId = user.id || user.userId;
@@ -213,7 +210,7 @@ app.post('/api/appointments', async (req, res) => {
     }
 
     const apptId = Date.now();
-    const finalStatus = status || "Pending";
+    const finalStatus = status || "pending";
 
     try {
         await executeQuery(
@@ -252,24 +249,24 @@ app.get('/api/appointments', async (req, res) => {
     }
 });
 
-app.put('/api/appointments/:id', async (req, res) => {
-    const { id } = req.params;
-    const { status, lang } = req.body; 
-    const updatedStatus = status || 'Confirmed';
+// 🎯 ROUTE COMPATIBLE DASHBOARD
+app.post('/api/appointments/status', async (req, res) => {
+    const { appointmentId, status, lang } = req.body;
+    const updatedStatus = status || 'confirmed';
     const emailLang = lang === 'en' ? 'en' : 'fr';
 
     try {
-        const result = await executeQuery('SELECT id, "userId", "clientName", "clientEmail", "dateTime", status FROM appointments WHERE id = $1', [id]);
+        const result = await executeQuery('SELECT id, "userId", "clientName", "clientEmail", "dateTime", status FROM appointments WHERE id = $1', [appointmentId]);
         const appointment = result.rows[0];
         if (!appointment) return res.status(404).json({ error: "Rendez-vous introuvable." });
 
-        await executeQuery("UPDATE appointments SET status = $1 WHERE id = $2", [updatedStatus, id]);
+        await executeQuery("UPDATE appointments SET status = $1 WHERE id = $2", [updatedStatus, appointmentId]);
 
         if (appointment.clientEmail) { 
             const dateNice = formatEmailDate(appointment.dateTime, emailLang);
             let clientHtml, emailSubject;
 
-            if (updatedStatus === 'Confirmed') {
+            if (updatedStatus === 'confirmed') {
                 emailSubject = emailLang === 'en' ? `✅ Appointment Confirmed!` : `✅ Rendez-vous Confirmé !`;
                 const details = `<div style="font-size: 14px; color: #cbd5e1;"><strong>Date :</strong> ${dateNice}</div>`;
                 clientHtml = generateEmailTemplate(emailLang === 'en' ? "Confirmed" : "Confirmé", "success", emailSubject, "", details);
@@ -280,7 +277,7 @@ app.put('/api/appointments/:id', async (req, res) => {
             }
             sendNotificationEmail(appointment.clientEmail, emailSubject, clientHtml);
         }
-        return res.json({ id: String(id), status: updatedStatus });
+        return res.json({ id: String(appointmentId), status: updatedStatus });
     } catch (err) {
         return res.status(500).json({ error: err.message });
     }
@@ -303,7 +300,7 @@ app.post('/api/public/book', async (req, res) => {
     try {
         await executeQuery(
             `INSERT INTO appointments (id, "userId", "clientName", "clientEmail", "dateTime", status) VALUES ($1, $2, $3, $4, $5, $6)`,
-            [apptId, userId, clientName, clientEmail, dateTime, "Pending"]
+            [apptId, userId, clientName, clientEmail, dateTime, "pending"]
         );
         return res.status(201).json({ success: true });
     } catch (err) {
