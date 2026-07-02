@@ -1,12 +1,13 @@
 const express = require('express');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
-const { Client } = require('pg'); 
+const { Pool } = require('pg'); // 🎯 REMPLACEMENT: On utilise Pool au lieu de Client
 require('dotenv').config(); 
 
 BigInt.prototype.toJSON = function() { return this.toString(); };
 
-const connectionString = process.env.DATABASE_URL || "postgresql://postgres.dmmtxstoystqampadggp:Ilovegaming21@aws-0-eu-west-1.pooler.supabase.com:5432/postgres";
+// 🎯 SÉCURITÉ: On ne met plus le mot de passe en clair. Railway fournira process.env.DATABASE_URL
+const connectionString = process.env.DATABASE_URL;
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -14,20 +15,22 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// FONCTION DE CONNEXION ÉPHÉMÈRE
+// 🎯 OPTIMISATION: Création d'un Pool de connexions (parfait pour Railway)
+const pool = new Pool({
+    connectionString: connectionString,
+    ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 5000,
+    max: 10 // Limite à 10 connexions simultanées maximum pour ne pas saturer Supabase
+});
+
+// FONCTION DE REQUÊTE OPTIMISÉE
 async function executeQuery(queryText, params = []) {
-    const client = new Client({
-        connectionString: connectionString,
-        ssl: { rejectUnauthorized: false },
-        connectionTimeoutMillis: 5000
-    });
     try {
-        await client.connect();
-        const result = await client.query(queryText, params);
-        await client.end(); 
+        // Le pool gère automatiquement l'ouverture et la fermeture
+        const result = await pool.query(queryText, params);
         return result;
     } catch (err) {
-        try { await client.end(); } catch(e){}
+        console.error("❌ Erreur SQL:", err.message);
         throw err;
     }
 }
@@ -197,11 +200,9 @@ app.post('/api/user/update', async (req, res) => {
     }
 });
 
-// 🎯 CORRECTIF AVANCÉ : Extraction et fallback automatique du userId
 app.post('/api/appointments', async (req, res) => {
     const { clientName, clientEmail, dateTime, status, user } = req.body;
     
-    // Détection adaptative de l'ID utilisateur (gère req.body.userId, req.body.userid, ou l'objet user s'il est imbriqué)
     let finalUserId = req.body.userId || req.body.userid;
     if (!finalUserId && user) {
         finalUserId = user.id || user.userId;
