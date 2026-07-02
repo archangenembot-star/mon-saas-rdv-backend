@@ -14,35 +14,28 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// -------------------------------------------------------------
-// CONFIGURATION DU CLIENT UNIQUE POSTGRESQL
-// -------------------------------------------------------------
-const client = new Client({
-    connectionString: connectionString,
-    ssl: {
-        rejectUnauthorized: false 
-    },
-    connectionTimeoutMillis: 10000 
-});
-
-let isConnected = false;
-async function connectDatabase() {
-    if (!isConnected) {
-        try {
-            await client.connect();
-            isConnected = true;
-            console.log("🗄️ Connexion sécurisée à PostgreSQL opérationnelle.");
-        } catch (err) {
-            console.error("❌ Erreur de connexion PostgreSQL :", err.message);
-        }
+// 🎯 FONCTION DE CONNEXION ÉPHÉMÈRE (Idéal pour Vercel / Serverless)
+async function executeQuery(queryText, params = []) {
+    const client = new Client({
+        connectionString: connectionString,
+        ssl: { rejectUnauthorized: false },
+        connectionTimeoutMillis: 5000
+    });
+    try {
+        await client.connect();
+        const result = await client.query(queryText, params);
+        await client.end(); // Ferme proprement après la requête
+        return result;
+    } catch (err) {
+        try { await client.end(); } catch(e){}
+        throw err;
     }
 }
 
-// Création automatique des tables
+// Initialisation des tables au démarrage
 const initDb = async () => {
     try {
-        await connectDatabase();
-        await client.query(`
+        await executeQuery(`
             CREATE TABLE IF NOT EXISTS users (
                 id bigint PRIMARY KEY,
                 email TEXT UNIQUE,
@@ -50,8 +43,7 @@ const initDb = async () => {
                 company TEXT
             )
         `);
-
-        await client.query(`
+        await executeQuery(`
             CREATE TABLE IF NOT EXISTS appointments (
                 id bigint PRIMARY KEY,
                 "userId" bigint,
@@ -61,8 +53,9 @@ const initDb = async () => {
                 status TEXT
             )
         `);
+        console.log("🗄️ Tables initialisées ou déjà existantes.");
     } catch (err) {
-        console.error("❌ Erreur lors de l'initialisation des tables :", err.message);
+        console.error("❌ Erreur d'initialisation des tables :", err.message);
     }
 };
 initDb();
@@ -87,7 +80,7 @@ async function initEmailTransporter() {
                 auth: { user: testAccount.user, pass: testAccount.pass },
             });
         } catch (err) {
-            console.log("⚠️ Mode email dégradé (sans SMTP).");
+            console.log("⚠️ Mode email dégradé.");
         }
     }
 }
@@ -142,12 +135,11 @@ async function sendNotificationEmail(toEmail, subject, htmlContent) {
     }
 }
 
-// ROUTE : CONNEXION
+// ROUTES
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     try {
-        await connectDatabase();
-        const result = await client.query("SELECT * FROM users WHERE LOWER(email) = LOWER($1)", [email]);
+        const result = await executeQuery("SELECT * FROM users WHERE LOWER(email) = LOWER($1)", [email]);
         const user = result.rows[0];
         if (!user || user.password !== password) {
             return res.status(400).json({ error: "Identifiants invalides." });
@@ -158,14 +150,12 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// ROUTE : INSCRIPTION
 app.post('/api/register', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: "Champs manquants." });
     const userId = Date.now(); 
     try {
-        await connectDatabase();
-        await client.query("INSERT INTO users (id, email, password, company) VALUES ($1, $2, $3, $4)", [userId, email, password, ""]);
+        await executeQuery("INSERT INTO users (id, email, password, company) VALUES ($1, $2, $3, $4)", [userId, email, password, ""]);
         return res.status(201).json({ id: String(userId), email });
     } catch (err) {
         if (err.message.includes("unique") || err.code === '23505') {
@@ -175,15 +165,12 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// ROUTE : PROFIL
 const handleProfileGet = async (req, res) => {
     const userId = req.query.userId || req.params.id;
     if (!userId) return res.status(400).json({ error: "userId requis." });
     try {
-        await connectDatabase();
-        const result = await client.query("SELECT id, email, company FROM users WHERE id = $1", [userId]);
+        const result = await executeQuery("SELECT id, email, company FROM users WHERE id = $1", [userId]);
         if (result.rows.length === 0) return res.status(404).json({ error: "Utilisateur introuvable." });
-        
         const user = result.rows[0];
         return res.json({ id: String(user.id), email: user.email, company: user.company, businessName: user.company });
     } catch (err) {
@@ -199,11 +186,10 @@ app.post('/api/user/update', async (req, res) => {
     const { userId, company, password } = req.body;
     if (!userId) return res.status(400).json({ error: "ID Utilisateur manquant." });
     try {
-        await connectDatabase();
         if (password) {
-            await client.query("UPDATE users SET company = $1, password = $2 WHERE id = $3", [company, password, userId]);
+            await executeQuery("UPDATE users SET company = $1, password = $2 WHERE id = $3", [company, password, userId]);
         } else {
-            await client.query("UPDATE users SET company = $1 WHERE id = $2", [company, userId]);
+            await executeQuery("UPDATE users SET company = $1 WHERE id = $2", [company, userId]);
         }
         return res.json({ success: true, message: "Profil mis à jour." });
     } catch (err) {
@@ -211,7 +197,7 @@ app.post('/api/user/update', async (req, res) => {
     }
 });
 
-// CRÉER UN RENDEZ-VOUS
+// 🎯 CORRECTIF APPOINTMENTS POST (Renvoie exactement l'objet attendu)
 app.post('/api/appointments', async (req, res) => {
     const { userId, clientName, clientEmail, dateTime, status } = req.body;
     if (!userId || !clientName || !dateTime) return res.status(400).json({ error: "Champs manquants." });
@@ -220,24 +206,28 @@ app.post('/api/appointments', async (req, res) => {
     const finalStatus = status || "Pending";
 
     try {
-        await connectDatabase();
-        await client.query(
+        await executeQuery(
             `INSERT INTO appointments (id, "userId", "clientName", "clientEmail", "dateTime", status) VALUES ($1, $2, $3, $4, $5, $6)`,
             [apptId, userId, clientName, clientEmail || null, dateTime, finalStatus]
         );
-        return res.status(201).json({ success: true, id: String(apptId) });
+        return res.status(201).json({ 
+            id: String(apptId), 
+            userId: String(userId), 
+            clientName, 
+            clientEmail: clientEmail || '', 
+            dateTime, 
+            status: finalStatus 
+        });
     } catch (err) {
         return res.status(500).json({ error: err.message });
     }
 });
 
-// RÉCUPÉRER LES RENDEZ-VOUS
 app.get('/api/appointments', async (req, res) => {
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: "userId requis." });
     try {
-        await connectDatabase();
-        const result = await client.query('SELECT id, "userId", "clientName", "clientEmail", "dateTime", status FROM appointments WHERE "userId" = $1', [userId]);
+        const result = await executeQuery('SELECT id, "userId", "clientName", "clientEmail", "dateTime", status FROM appointments WHERE "userId" = $1', [userId]);
         const formattedRows = result.rows.map(row => ({
             id: String(row.id),
             userId: String(row.userId),
@@ -252,7 +242,6 @@ app.get('/api/appointments', async (req, res) => {
     }
 });
 
-// MODIFIER LE STATUT D'UN RENDEZ-VOUS
 app.put('/api/appointments/:id', async (req, res) => {
     const { id } = req.params;
     const { status, lang } = req.body; 
@@ -260,12 +249,11 @@ app.put('/api/appointments/:id', async (req, res) => {
     const emailLang = lang === 'en' ? 'en' : 'fr';
 
     try {
-        await connectDatabase();
-        const result = await client.query('SELECT id, "userId", "clientName", "clientEmail", "dateTime", status FROM appointments WHERE id = $1', [id]);
+        const result = await executeQuery('SELECT id, "userId", "clientName", "clientEmail", "dateTime", status FROM appointments WHERE id = $1', [id]);
         const appointment = result.rows[0];
         if (!appointment) return res.status(404).json({ error: "Rendez-vous introuvable." });
 
-        await client.query("UPDATE appointments SET status = $1 WHERE id = $2", [updatedStatus, id]);
+        await executeQuery("UPDATE appointments SET status = $1 WHERE id = $2", [updatedStatus, id]);
 
         if (appointment.clientEmail) { 
             const dateNice = formatEmailDate(appointment.dateTime, emailLang);
@@ -288,27 +276,22 @@ app.put('/api/appointments/:id', async (req, res) => {
     }
 });
 
-// SUPPRIMER UN RENDEZ-VOUS
 app.delete('/api/appointments/:id', async (req, res) => {
     const { id } = req.params;
     try {
-        await connectDatabase();
-        await client.query("DELETE FROM appointments WHERE id = $1", [id]);
+        await executeQuery("DELETE FROM appointments WHERE id = $1", [id]);
         return res.json({ success: true });
     } catch (err) {
         return res.status(500).json({ error: err.message });
     }
 });
 
-// FORMULAIRE PUBLIC POUR LES CLIENTS
 app.post('/api/public/book', async (req, res) => {
     const { userId, clientName, clientEmail, dateTime } = req.body;
     if (!userId || !clientName || !clientEmail || !dateTime) return res.status(400).json({ error: "Champs manquants." });
     const apptId = Date.now(); 
-
     try {
-        await connectDatabase();
-        await client.query(
+        await executeQuery(
             `INSERT INTO appointments (id, "userId", "clientName", "clientEmail", "dateTime", status) VALUES ($1, $2, $3, $4, $5, $6)`,
             [apptId, userId, clientName, clientEmail, dateTime, "Pending"]
         );
