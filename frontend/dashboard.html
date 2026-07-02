@@ -495,7 +495,8 @@
     function generateBookingUrl() {
         if (userId) {
             const currentOrigin = window.location.origin;
-            document.getElementById('bookingUrlField').value = `${currentOrigin}/mon-saas-rdv-backend/frontend/booking.html?user=${userId}`;
+            // Corrigé pour pointer proprement sur la page booking.html de GitHub Pages
+            document.getElementById('bookingUrlField').value = `${currentOrigin}/booking.html?user=${userId}`;
         }
     }
 
@@ -619,7 +620,6 @@
         }
     }
 
-    // 🌟 AJOUT : Fonction globale interactive de mise à jour de statut 
     window.updateStatus = async function(appointmentId, newStatus) {
         const t = translations[currentLang];
         if (!appointmentId || appointmentId === 'undefined') return;
@@ -643,7 +643,6 @@
         }
     }
 
-    // 🌟 AJOUT : Fonction globale pour gérer la corbeille de suppression
     window.deleteAppointment = async function(appointmentId) {
         const t = translations[currentLang];
         if (!confirm(t.confirmDelete)) return;
