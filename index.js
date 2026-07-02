@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
 const { Pool } = require('pg'); 
+const path = require('path'); 
 require('dotenv').config(); 
 
 BigInt.prototype.toJSON = function() { return this.toString(); };
@@ -11,7 +12,7 @@ const connectionString = process.env.DATABASE_URL;
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// 🎯 CORRECTION CORS : Autorise toutes les origines et requêtes de pré-vérification (Preflight)
+// 🎯 CONFIGURATION CORS
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -19,6 +20,9 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// Servir les fichiers statiques du dossier frontend
+app.use(express.static(path.join(__dirname, 'frontend')));
 
 const pool = new Pool({
     connectionString: connectionString,
@@ -136,7 +140,12 @@ async function sendNotificationEmail(toEmail, subject, htmlContent) {
     }
 }
 
-// ROUTES
+// Redirection racine vers l'index du frontend
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
+});
+
+// --- ROUTES AUTHENTIFICATION ---
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     try {
@@ -166,6 +175,7 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
+// --- ROUTES PROFIL UTILISATEUR ---
 const handleProfileGet = async (req, res) => {
     const userId = req.query.userId || req.params.id;
     if (!userId) return res.status(400).json({ error: "userId requis." });
@@ -183,14 +193,35 @@ app.get('/api/profile', handleProfileGet);
 app.get('/api/user/profile', handleProfileGet);
 app.get('/api/user/:id', handleProfileGet);
 
-app.post('/api/user/update', async (req, res) => {
-    const { userId, company, password } = req.body;
+// 🎯 CORRECTION & SYNCHRONISATION : Route PUT attendue par user-center.html
+app.put('/api/user/profile', async (req, res) => {
+    const { userId, businessName, company, password } = req.body;
     if (!userId) return res.status(400).json({ error: "ID Utilisateur manquant." });
+    
+    // Aligne businessName (front) et company (back-db)
+    const finalCompanyName = businessName !== undefined ? businessName : company;
+
     try {
         if (password) {
-            await executeQuery("UPDATE users SET company = $1, password = $2 WHERE id = $3", [company, password, userId]);
+            await executeQuery("UPDATE users SET company = $1, password = $2 WHERE id = $3", [finalCompanyName, password, userId]);
         } else {
-            await executeQuery("UPDATE users SET company = $1 WHERE id = $2", [company, userId]);
+            await executeQuery("UPDATE users SET company = $1 WHERE id = $2", [finalCompanyName, userId]);
+        }
+        return res.json({ success: true, message: "Profil mis à jour avec succès." });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+// Garde de l'ancienne route POST par sécurité
+app.post('/api/user/update', async (req, res) => {
+    const { userId, company, businessName, password } = req.body;
+    const finalCompanyName = businessName !== undefined ? businessName : company;
+    try {
+        if (password) {
+            await executeQuery("UPDATE users SET company = $1, password = $2 WHERE id = $3", [finalCompanyName, password, userId]);
+        } else {
+            await executeQuery("UPDATE users SET company = $1 WHERE id = $2", [finalCompanyName, userId]);
         }
         return res.json({ success: true, message: "Profil mis à jour." });
     } catch (err) {
@@ -198,6 +229,7 @@ app.post('/api/user/update', async (req, res) => {
     }
 });
 
+// --- ROUTES APPOINTMENTS ---
 app.post('/api/appointments', async (req, res) => {
     const { clientName, clientEmail, dateTime, status, user } = req.body;
     let finalUserId = req.body.userId || req.body.userid;
@@ -249,7 +281,6 @@ app.get('/api/appointments', async (req, res) => {
     }
 });
 
-// 🎯 ROUTE COMPATIBLE DASHBOARD
 app.post('/api/appointments/status', async (req, res) => {
     const { appointmentId, status, lang } = req.body;
     const updatedStatus = status || 'confirmed';

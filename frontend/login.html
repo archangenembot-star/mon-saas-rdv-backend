@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS Appointment - Authentication</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --text-main: #ffffff;
+            --text-muted: #94a3b8;
+            --border-glass: rgba(255, 255, 255, 0.12);
+            --danger: #ef4444;
+        }
+
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #311042 100%);
+            margin: 0; 
+            padding: 0; 
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        .lang-container { 
+            position: absolute; 
+            top: 20px; 
+            right: 20px; 
+        }
+        
+        .lang-select {
+            background: rgba(255, 255, 255, 0.07); 
+            border: 1px solid var(--border-glass);
+            color: white; 
+            padding: 6px 12px; 
+            border-radius: 8px; 
+            font-size: 13px; 
+            outline: none; 
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+        }
+
+        /* Glassmorphism Card */
+        .auth-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            width: 100%;
+            max-width: 420px;
+            padding: 40px;
+            border-radius: 20px;
+            border: 1px solid var(--border-glass);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            box-sizing: border-box;
+            transition: transform 0.3s ease, border-color 0.3s ease;
+        }
+        .auth-card:hover {
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        h2 { 
+            text-align: center; 
+            color: #ffffff; 
+            margin-top: 0; 
+            margin-bottom: 28px; 
+            font-size: 26px; 
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .form-group { margin-bottom: 22px; }
+        
+        label { 
+            font-weight: 600; 
+            display: block; 
+            margin-bottom: 9px; 
+            color: #cbd5e1; 
+            font-size: 14px; 
+        }
+        
+        input { 
+            width: 100%; 
+            padding: 12px 14px; 
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1); 
+            border-radius: 10px; 
+            font-size: 15px; 
+            color: white;
+            box-sizing: border-box;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+        input:focus { 
+            border-color: var(--primary); 
+            background: rgba(15, 23, 42, 0.6);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25); 
+        }
+        input::placeholder { color: #475569; }
+
+        .btn-auth { 
+            width: 100%; 
+            padding: 14px; 
+            background: linear-gradient(135deg, var(--primary) 0%, #4f46e5 100%);
+            color: white; 
+            border: none; 
+            border-radius: 10px; 
+            font-size: 16px; 
+            font-weight: 700; 
+            cursor: pointer; 
+            transition: all 0.3s ease; 
+            margin-top: 10px;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+        .btn-auth:hover { 
+            filter: brightness(1.1);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+        }
+
+        .toggle-text {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+        .toggle-text span { color: #a5b4fc; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .toggle-text span:hover { color: white; text-decoration: underline; }
+
+        .back-home {
+            display: block;
+            text-align: center;
+            margin-top: 28px;
+            font-size: 14px;
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: 0.2s;
+        }
+        .back-home:hover { color: white; }
+
+        .error-box {
+            background-color: rgba(239, 68, 68, 0.15);
+            color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 24px;
+            display: none;
+            text-align: center;
+            font-weight: 500;
+            backdrop-filter: blur(5px);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="lang-container">
+        <select id="langSelect" class="lang-select">
+            <option value="fr">🇫🇷 FR</option>
+            <option value="en">🇺🇸 EN</option>
+        </select>
+    </div>
+
+    <div class="auth-card">
+        <h2 id="authTitle">Connexion</h2>
+        
+        <div id="errorBox" class="error-box"></div>
+
+        <form id="authForm">
+            <div class="form-group" id="businessNameGroup" style="display: none;">
+                <label for="businessName" id="lblBusiness">Nom du commerce :</label>
+                <input type="text" id="businessName" placeholder="Mon Super Commerce">
+            </div>
+            
+            <div class="form-group">
+                <label for="email" id="lblEmail">Adresse E-mail :</label>
+                <input type="email" id="email" required placeholder="merchant-test@saas.com" autocomplete="username">
+            </div>
+            <div class="form-group">
+                <label for="password" id="lblPassword">Mot de passe :</label>
+                <input type="password" id="password" required placeholder="••••••••" autocomplete="current-password">
+            </div>
+            <button type="submit" id="submitBtn" class="btn-auth">Se connecter</button>
+        </form>
+
+        <div id="toggleAuth" class="toggle-text">Vous n'avez pas de compte ? <span id="toggleSpan">S'inscrire</span></div>
+        <a href="home.html" class="back-home" id="btnBackHome">&larr; Retour à l'accueil</a>
+    </div>
+
+<script>
+    const BASE_URL = 'https://mon-saas-rdv-backend-production.up.railway.app';
+    
+    if (localStorage.getItem('userId')) {
+        window.location.replace('dashboard.html'); 
+    }
+
+    let isLoginMode = true; 
+    let currentLang = localStorage.getItem('saasLang') || 'fr';
+
+    const translations = {
+        fr: {
+            titleLogin: "Connexion",
+            titleRegister: "Créer un compte",
+            lblBusiness: "Nom du commerce :",
+            lblEmail: "Adresse E-mail :",
+            lblPassword: "Mot de passe :",
+            btnLogin: "Se connecter",
+            btnRegister: "S'inscrire",
+            noAccount: "Vous n'avez pas de compte ? ",
+            hasAccount: "Vous avez déjà un compte ? ",
+            toggleRegister: "S'inscrire",
+            toggleLogin: "Se connecter",
+            backHome: "← Retour à l'accueil",
+            errServer: "Impossible de joindre le serveur. Vérifiez votre connexion.",
+            errDefault: "Une erreur est survenue."
+        },
+        en: {
+            titleLogin: "Sign In",
+            titleRegister: "Create Account",
+            lblBusiness: "Business Name:",
+            lblEmail: "Email Address:",
+            lblPassword: "Password:",
+            btnLogin: "Log In",
+            btnRegister: "Sign Up",
+            noAccount: "Don't have an account? ",
+            hasAccount: "Already have an account? ",
+            toggleRegister: "Sign Up",
+            toggleLogin: "Sign In",
+            backHome: "← Back to home",
+            errServer: "Unable to reach the server. Please check your connection.",
+            errDefault: "An error occurred."
+        }
+    };
+
+    function applyTranslations() {
+        const t = translations[currentLang];
+        
+        document.getElementById('lblEmail').innerText = t.lblEmail;
+        document.getElementById('lblPassword').innerText = t.lblPassword;
+        document.getElementById('lblBusiness').innerText = t.lblBusiness;
+        document.getElementById('btnBackHome').innerText = t.backHome;
+        document.getElementById('langSelect').value = currentLang;
+
+        const businessInput = document.getElementById('businessName');
+        const passwordInput = document.getElementById('password');
+
+        if (isLoginMode) {
+            document.getElementById('authTitle').innerText = t.titleLogin;
+            document.getElementById('submitBtn').innerText = t.btnLogin;
+            document.getElementById('toggleAuth').innerHTML = t.noAccount + `<span id="toggleSpan" onclick="toggleAuthMode()">${t.toggleRegister}</span>`;
+            document.getElementById('businessNameGroup').style.display = 'none';
+            businessInput.removeAttribute('required');
+            passwordInput.setAttribute('autocomplete', 'current-password');
+        } else {
+            document.getElementById('authTitle').innerText = t.titleRegister;
+            document.getElementById('submitBtn').innerText = t.btnRegister;
+            document.getElementById('toggleAuth').innerHTML = t.hasAccount + `<span id="toggleSpan" onclick="toggleAuthMode()">${t.toggleLogin}</span>`;
+            document.getElementById('businessNameGroup').style.display = 'block';
+            businessInput.setAttribute('required', '');
+            passwordInput.setAttribute('autocomplete', 'new-password');
+        }
+    }
+
+    window.toggleAuthMode = function() {
+        isLoginMode = !isLoginMode;
+        document.getElementById('errorBox').style.display = 'none';
+        applyTranslations();
+    }
+
+    document.getElementById('langSelect').addEventListener('change', (e) => {
+        currentLang = e.target.value;
+        localStorage.setItem('saasLang', currentLang);
+        applyTranslations();
+    });
+
+    document.getElementById('authForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errorBox = document.getElementById('errorBox');
+        errorBox.style.display = 'none';
+
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const businessName = document.getElementById('businessName').value;
+
+        const endpoint = isLoginMode ? '/api/login' : '/api/register';
+        
+        const bodyData = { email, password };
+        if (!isLoginMode && businessName) {
+            bodyData.businessName = businessName;
+        }
+
+        try {
+            const res = await fetch(`${BASE_URL}${endpoint}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(bodyData)
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                localStorage.setItem('userId', data.userId || data.id);
+                localStorage.setItem('userEmail', email);
+                window.location.replace('dashboard.html'); 
+            } else {
+                errorBox.innerText = data.error || translations[currentLang].errDefault;
+                errorBox.style.display = 'block';
+            }
+        } catch (err) {
+            console.error("Erreur d'authentification:", err);
+            errorBox.innerText = translations[currentLang].errServer;
+            errorBox.style.display = 'block';
+        }
+    });
+
+    applyTranslations();
+</script>
+</body>
+</html>

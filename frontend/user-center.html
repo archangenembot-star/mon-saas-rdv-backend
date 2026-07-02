@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS Appointment - User Center</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --success: #10b981;
+            --danger: #ef4444;
+            --background: #0f172a;
+            --card-bg: rgba(255, 255, 255, 0.03);
+            --border-glass: rgba(255, 255, 255, 0.08);
+            --text-main: #ffffff;
+            --text-muted: #94a3b8;
+            --card-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #311042 100%);
+            margin: 0; padding: 0; color: var(--text-main); min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        /* 🧭 Barre de Navigation Mise à jour et Harmonisée */
+        .navbar {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-glass);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-logo {
+            font-size: 20px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #a5b4fc 0%, var(--primary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .nav-item {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .nav-item.active, .nav-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+        }
+
+        .nav-item.active {
+            background: rgba(99, 102, 241, 0.2);
+            border-color: rgba(99, 102, 241, 0.4);
+        }
+
+        .right-menu {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .btn-logout {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #fca5a5;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-logout:hover { 
+            background: rgba(239, 68, 68, 0.4);
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);
+        }
+
+        .lang-select {
+            background: rgba(255, 255, 255, 0.07);
+            border: 1px solid var(--border-glass);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .container { max-width: 1100px; margin: 40px auto; padding: 0 24px; box-sizing: border-box; }
+
+        h1 { 
+            text-align: center;
+            margin-bottom: 35px; font-size: 32px; letter-spacing: -1px;
+            background: linear-gradient(to right, #a5b4fc, #e879f9);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+
+        /* Encadré Lien Public */
+        .link-share-box {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 15px;
+            padding: 16px 24px;
+            margin-bottom: 35px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+        }
+        .link-text-container { flex: 1; }
+        .link-title { font-size: 13px; font-weight: 700; color: #a5b4fc; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;}
+        .link-url { font-size: 14px; color: #e2e8f0; word-break: break-all; font-family: monospace; }
+        
+        .btn-copy {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .btn-copy:hover { background: var(--primary-hover); transform: translateY(-1px); }
+
+        /* Grid Layout */
+        .user-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.8fr;
+            gap: 30px;
+        }
+
+        .card-section {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-glass);
+            padding: 35px;
+            border-radius: 20px;
+            box-shadow: var(--card-shadow);
+        }
+
+        /* Profile & Avatar */
+        .profile-header { text-align: center; margin-bottom: 10px; position: relative; }
+        .avatar-container { position: relative; width: 110px; height: 110px; margin: 0 auto 16px; }
+        .avatar-circle {
+            width: 100%; height: 100%;
+            background: linear-gradient(135deg, #4f46e5 0%, #c084fc 100%);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 42px; font-weight: 800; color: white;
+            box-shadow: 0 10px 25px rgba(79, 70, 229, 0.3);
+        }
+        .badge-status {
+            position: absolute; bottom: 0; right: 4px;
+            background: var(--success); color: #0f172a; font-size: 11px; font-weight: 800;
+            padding: 3px 8px; border-radius: 20px; border: 3px solid #0f172a;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+
+        /* Stats Design */
+        .stats-box {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 35px;
+        }
+        .stat-item {
+            background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255,255,255,0.05);
+            padding: 16px; border-radius: 16px; text-align: center;
+            transition: transform 0.2s ease;
+        }
+        .stat-item:hover { transform: translateY(-2px); }
+        .stat-item h4 { margin: 0; font-size: 28px; font-weight: 800; color: #f8fafc; }
+        .stat-item p { margin: 6px 0 0; font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; }
+
+        /* Formulaires */
+        h2 { font-size: 18px; font-weight: 700; margin-top: 0; margin-bottom: 24px; color: #f1f5f9; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; }
+        
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .form-group { margin-bottom: 22px; }
+        
+        label { display: block; margin-bottom: 8px; font-size: 12px; color: #cbd5e1; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+        input {
+            width: 100%; padding: 13px 16px; background: rgba(15, 23, 42, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px;
+            color: white; font-size: 14px; outline: none; transition: all 0.2s ease; box-sizing: border-box;
+        }
+        input:focus { 
+            border-color: var(--primary); 
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25); 
+        }
+
+        .btn-save {
+            width: 100%; padding: 14px; background: linear-gradient(135deg, var(--success) 0%, #059669 100%); color: white;
+            border: none; border-radius: 12px; font-weight: 700; font-size: 14px;
+            cursor: pointer; transition: all 0.2s; margin-top: 15px;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.25);
+        }
+        .btn-save:hover { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4); }
+
+        @media (max-width: 900px) { 
+            .user-grid { grid-template-columns: 1fr; } 
+            .form-row { grid-template-columns: 1fr; gap: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="nav-logo">📅 SaaS Appointment</div>
+    <div class="nav-links">
+        <a href="home.html" class="nav-item" id="navHome">Home</a>
+        <a href="dashboard.html" class="nav-item" id="navDashboard">Dashboard</a>
+        <a href="user-center.html" class="nav-item active" id="navProfile">Profile</a>
+    </div>
+    <div class="right-menu">
+        <select id="langSelect" class="lang-select">
+            <option value="fr">🇫🇷 FR</option>
+            <option value="en">🇺🇸 EN</option>
+        </select>
+        <div class="user-info" style="font-size: 14px; color: #cbd5e1;">
+            <span id="lblHello">Hello</span>, <span id="topEmailDisplay" style="color: #a5b4fc; font-weight: 600;">...</span>
+        </div>
+        <button onclick="localStorage.clear(); sessionStorage.clear(); window.location.href='login.html';" class="btn-logout" id="logoutBtn">Log Out</button>
+    </div>
+</nav>
+
+<div class="container">
+    <h1 id="mainTitle">Account Settings</h1>
+
+    <div class="link-share-box">
+        <div class="link-text-container">
+            <div class="link-title" id="lblLinkTitle">Votre page de réservation publique :</div>
+            <div class="link-url" id="bookingUrlDisplay">...</div>
+        </div>
+        <button class="btn-copy" id="btnCopyLink" onclick="copyBookingLink()">Copier</button>
+    </div>
+
+    <div class="user-grid">
+        <div class="card-section">
+            <div class="profile-header">
+                <div class="avatar-container">
+                    <div class="avatar-circle" id="userInitial">?</div>
+                    <div class="badge-status">Pro</div>
+                </div>
+                <h3 id="cardEmailDisplay" style="margin: 12px 0 6px; font-size: 18px; font-weight: 700; word-break: break-all; color: #f8fafc;">...</h3>
+                <p style="font-size: 13px; color: var(--text-muted); margin: 0;" id="lblMemberSince">Membre depuis Juin 2026</p>
+            </div>
+
+            <div class="stats-box">
+                <div class="stat-item">
+                    <h4 id="totalAppts">0</h4>
+                    <p id="statTotal">Total</p>
+                </div>
+                <div class="stat-item">
+                    <h4 id="confirmedAppts" style="color: var(--success);">0</h4>
+                    <p id="statConfirmed">Confirmed</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-section">
+            <h2 id="secPersonalTitle">Personal Information</h2>
+            <form id="profileForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label id="lblEmailForm">Email Address</label>
+                        <input type="email" id="editEmail" disabled style="opacity: 0.5; cursor: not-allowed; background: rgba(0,0,0,0.2);" autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                        <label id="lblCompanyForm">Business Name</label>
+                        <input type="text" id="editCompany" value="">
+                    </div>
+                </div>
+                
+                <h2 style="margin-top: 35px;" id="secSecurityTitle">Security</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label id="lblNewPassword">New Password</label>
+                        <input type="password" id="newPassword" autocomplete="new-password">
+                    </div>
+                    <div class="form-group">
+                        <label id="lblConfirmPassword">Confirm New Password</label>
+                        <input type="password" id="confirmPassword" autocomplete="new-password">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-save" id="btnUpdateProfile">Update Profile</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const email = localStorage.getItem('userEmail');
+    const userId = localStorage.getItem('userId');
+    
+    // ⚠️ METS ICI TON URL DE PRODUCTION RAILWAY (ex: 'https://mon-projet-production.up.railway.app')
+    const BASE_URL = 'https://mon-saas-rdv-backend-production.up.railway.app';
+    const FRONTEND_URL = window.location.origin; 
+
+    if (!email || !userId) {
+        window.location.href = 'login.html';
+    } else {
+        document.getElementById('topEmailDisplay').innerText = email;
+        document.getElementById('cardEmailDisplay').innerText = email;
+        document.getElementById('editEmail').value = email;
+        document.getElementById('userInitial').innerText = email.charAt(0).toUpperCase();
+        
+        document.getElementById('bookingUrlDisplay').innerText = `${FRONTEND_URL}/booking.html?user=${userId}`;
+    }
+
+    const translations = {
+        fr: {
+            navHome: "Accueil",
+            navDashboard: "Tableau de bord",
+            navProfile: "Profil",
+            lblHello: "Bonjour",
+            logoutBtn: "Déconnexion",
+            mainTitle: "Paramètres du Compte",
+            lblLinkTitle: "Votre page de réservation publique :",
+            btnCopy: "Copier",
+            btnCopied: "Copié !",
+            lblMemberSince: "Membre depuis Juin 2026",
+            statTotal: "Total RDV",
+            statConfirmed: "Confirmés",
+            secPersonalTitle: "Informations Générales",
+            lblEmailForm: "Adresse Émail",
+            lblCompanyForm: "Nom de l'établissement",
+            secSecurityTitle: "Sécurité & Accès",
+            lblNewPassword: "Nouveau mot de passe",
+            passPlaceholder: "Laisser vide pour conserver l'actuel",
+            lblConfirmPassword: "Confirmer le mot de passe",
+            confirmPlaceholder: "Confirmez votre nouveau mot de passe",
+            btnUpdateProfile: "Enregistrer les modifications",
+            alertUpdate: "Vos paramètres de compte ont été mis à jour avec succès !",
+            alertMismatch: "Les mots de passe ne correspondent pas.",
+            alertError: "Une erreur est survenue lors de la mise à jour."
+        },
+        en: {
+            navHome: "Home",
+            navDashboard: "Dashboard",
+            navProfile: "Profile",
+            lblHello: "Hello",
+            logoutBtn: "Log Out",
+            mainTitle: "Account Settings",
+            lblLinkTitle: "Your public booking page:",
+            btnCopy: "Copy",
+            btnCopied: "Copied!",
+            lblMemberSince: "Member since June 2026",
+            statTotal: "Total Bookings",
+            statConfirmed: "Confirmed",
+            secPersonalTitle: "Personal Information",
+            lblEmailForm: "Email Address",
+            lblCompanyForm: "Business Name",
+            secSecurityTitle: "Security & Access",
+            lblNewPassword: "New Password",
+            passPlaceholder: "Leave blank to keep current",
+            lblConfirmPassword: "Confirm New Password",
+            confirmPlaceholder: "Confirm your new password",
+            btnUpdateProfile: "Update Profile Settings",
+            alertUpdate: "Your account settings have been updated successfully!",
+            alertMismatch: "Passwords do not match.",
+            alertError: "An error occurred during update."
+        }
+    };
+
+    let currentLang = localStorage.getItem('saasLang') || 'fr';
+
+    function applyTranslations() {
+        const t = translations[currentLang];
+        
+        document.getElementById('navHome').innerText = t.navHome;
+        document.getElementById('navDashboard').innerText = t.navDashboard;
+        document.getElementById('navProfile').innerText = t.navProfile;
+        document.getElementById('lblHello').innerText = t.lblHello;
+        document.getElementById('logoutBtn').innerText = t.logoutBtn;
+        document.getElementById('mainTitle').innerText = t.mainTitle;
+        document.getElementById('lblLinkTitle').innerText = t.lblLinkTitle;
+        document.getElementById('btnCopyLink').innerText = document.getElementById('btnCopyLink').innerText === t.btnCopied ? t.btnCopied : t.btnCopy;
+        document.getElementById('lblMemberSince').innerText = t.lblMemberSince;
+        document.getElementById('statTotal').innerText = t.statTotal;
+        document.getElementById('statConfirmed').innerText = t.statConfirmed;
+        document.getElementById('secPersonalTitle').innerText = t.secPersonalTitle;
+        document.getElementById('lblEmailForm').innerText = t.lblEmailForm;
+        document.getElementById('lblCompanyForm').innerText = t.lblCompanyForm;
+        document.getElementById('secSecurityTitle').innerText = t.secSecurityTitle;
+        document.getElementById('lblNewPassword').innerText = t.lblNewPassword;
+        document.getElementById('lblConfirmPassword').innerText = t.lblConfirmPassword;
+        document.getElementById('btnUpdateProfile').innerText = t.btnUpdateProfile;
+        
+        document.getElementById('newPassword').placeholder = t.passPlaceholder;
+        document.getElementById('confirmPassword').placeholder = t.confirmPlaceholder;
+
+        document.getElementById('langSelect').value = currentLang;
+    }
+
+    window.copyBookingLink = function() {
+        const urlText = document.getElementById('bookingUrlDisplay').innerText;
+        navigator.clipboard.writeText(urlText).then(() => {
+            const btn = document.getElementById('btnCopyLink');
+            const originalText = translations[currentLang].btnCopy;
+            btn.innerText = translations[currentLang].btnCopied;
+            btn.style.background = "var(--success)";
+            setTimeout(() => {
+                btn.innerText = originalText;
+                btn.style.background = "var(--primary)";
+            }, 2000);
+        });
+    }
+
+    document.getElementById('langSelect').addEventListener('change', (e) => {
+        currentLang = e.target.value;
+        localStorage.setItem('saasLang', currentLang);
+        applyTranslations();
+    });
+
+    async function loadData() {
+        try {
+            const profileRes = await fetch(`${BASE_URL}/api/user/profile?userId=${userId}`);
+            if (profileRes.ok) {
+                const profileData = await profileRes.json();
+                document.getElementById('editCompany').value = profileData.businessName || "";
+            }
+
+            const statsRes = await fetch(`${BASE_URL}/api/appointments?userId=${userId}`);
+            if (statsRes.ok) {
+                const appointments = await statsRes.json();
+                document.getElementById('totalAppts').innerText = appointments.length;
+                document.getElementById('confirmedAppts').innerText = appointments.filter(a => a.status === 'Confirmed').length;
+            }
+        } catch (e) { 
+            console.error("Erreur lors de la récupération des données:", e); 
+        }
+    }
+
+    document.getElementById('profileForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const t = translations[currentLang];
+        
+        const businessName = document.getElementById('editCompany').value;
+        const password = document.getElementById('newPassword').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+
+        if (password && password !== confirmPassword) {
+            alert(t.alertMismatch);
+            return;
+        }
+
+        try {
+            const response = await fetch(`${BASE_URL}/api/user/profile`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, businessName, password })
+            });
+
+            if (response.ok) {
+                alert(t.alertUpdate);
+                document.getElementById('newPassword').value = "";
+                document.getElementById('confirmPassword').value = "";
+            } else {
+                alert(t.alertError);
+            }
+        } catch (error) {
+            console.error("Erreur lors de la requête de modification:", error);
+            alert(t.alertError);
+        }
+    });
+
+    applyTranslations();
+    loadData();
+</script>
+</body>
+</html>

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS Appointment Manager - Accueil</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --background: #0f172a;
+            --card-bg: rgba(255, 255, 255, 0.03);
+            --border-glass: rgba(255, 255, 255, 0.08);
+            --text-main: #ffffff;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #2e1065 100%);
+            margin: 0;
+            padding: 0;
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        .top-bar { 
+            position: absolute; 
+            top: 20px; 
+            right: 20px; 
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .lang-select {
+            background: rgba(255, 255, 255, 0.07); 
+            border: 1px solid var(--border-glass);
+            color: white; 
+            padding: 6px 12px; 
+            border-radius: 8px; 
+            font-size: 13px; 
+            outline: none; 
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+        }
+
+        .user-badge {
+            font-size: 13px;
+            color: var(--text-muted);
+            background: rgba(255, 255, 255, 0.05);
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-glass);
+        }
+
+        .hero-container {
+            max-width: 800px;
+            text-align: center;
+            padding: 60px 20px 40px 20px;
+        }
+
+        .badge-intro {
+            background: rgba(99, 102, 241, 0.15);
+            color: #a5b4fc;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            font-size: 48px;
+            font-weight: 800;
+            line-height: 1.2;
+            margin: 0 0 20px 0;
+            background: linear-gradient(to right, #ffffff, #c7d2fe, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .description {
+            font-size: 18px;
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin-bottom: 40px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .cta-group {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-bottom: 60px;
+        }
+
+        .btn {
+            padding: 14px 28px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, #4338ca 100%);
+            color: white;
+            border: none;
+            box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-primary:hover {
+            filter: brightness(1.1);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            color: white;
+            border: 1px solid var(--border-glass);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .feature-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-glass);
+            border-radius: 16px;
+            padding: 24px;
+            text-align: left;
+            backdrop-filter: blur(10px);
+        }
+
+        .feature-icon {
+            font-size: 24px;
+            margin-bottom: 12px;
+        }
+
+        .feature-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .feature-text {
+            font-size: 14px;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        @media (max-width: 768px) {
+            .features-grid { grid-template-columns: 1fr; }
+            h1 { font-size: 36px; }
+            .cta-group { flex-direction: column; width: 100%; max-width: 300px; margin: 0 auto 40px auto; }
+            .top-bar { position: static; margin-bottom: 20px; flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="top-bar">
+    <div id="userIndicator" class="user-badge" style="display: none;"></div>
+    
+    <select id="langSelect" class="lang-select">
+        <option value="fr">🇫🇷 FR</option>
+        <option value="en">🇺🇸 EN</option>
+    </select>
+</div>
+
+<div class="hero-container">
+    <span class="badge-intro" id="badgeIntro">🚀 propulsé par Railway & Node.js</span>
+    <h1 id="mainTitle">Gérez vos rendez-vous clients en toute simplicité</h1>
+    <p class="description" id="mainDescription">
+        La plateforme SaaS tout-en-un pour les commerçants et professionnels. Créez votre page publique, recevez des demandes et gérez vos confirmations par e-mail en un clic.
+    </p>
+
+    <div class="cta-group">
+        <a href="login.html" class="btn btn-primary" id="btnMerchant">Espace Commerçant</a>
+        <a href="booking.html?user=1" class="btn btn-secondary" id="btnDemo">Démo Page Client</a>
+    </div>
+
+    <div class="features-grid">
+        <div class="feature-card">
+            <div class="feature-icon">📅</div>
+            <div class="feature-title" id="f1Title">Page Publique</div>
+            <div class="feature-text" id="f1Text">Un calendrier simple et intuitif pour permettre à vos clients de réserver à tout moment.</div>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">✉️</div>
+            <div class="feature-title" id="f2Title">Notifications E-mail</div>
+            <div class="feature-text" id="f2Text">Des alertes instantanées et e-mails de confirmation/refus designés automatiquement.</div>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <div class="feature-title" id="f3Title">Tableau de Bord</div>
+            <div class="feature-text" id="f3Text">Une interface moderne pour suivre le statut de vos demandes et piloter votre activité.</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Ajout de la variable pour maintenir la cohérence avec le reste du projet
+    const BASE_URL = 'https://mon-saas-rdv-backend-production.up.railway.app';
+
+    const translations = {
+        fr: {
+            badge: "🚀 propulsé par Railway & Node.js",
+            title: "Gérez vos rendez-vous clients en toute simplicité",
+            description: "La plateforme SaaS tout-en-un pour les commerçants et professionnels. Créez votre page publique, recevez des demandes et gérez vos confirmations par e-mail en un clic.",
+            btnMerchant: "Espace Commerçant",
+            btnDashboard: "Accéder au Tableau de Bord",
+            btnDemo: "Démo Page Client",
+            f1Title: "Page Publique",
+            f1Text: "Un calendrier simple et intuitif pour permettre à vos clients de réserver à tout moment.",
+            f2Title: "Notifications E-mail",
+            f2Text: "Des alertes instantanées et e-mails de confirmation/refus designés automatiquement.",
+            f3Title: "Tableau de Bord",
+            f3Text: "Une interface moderne pour suivre le statut de vos demandes et piloter votre activité.",
+            connectedAs: "Connecté : "
+        },
+        en: {
+            badge: "🚀 powered by Railway & Node.js",
+            title: "Manage your client appointments with ease",
+            description: "The all-in-one SaaS platform for merchants and professionals. Create your public page, receive requests, and manage your email confirmations in one click.",
+            btnMerchant: "Merchant Space",
+            btnDashboard: "Go to Dashboard",
+            btnDemo: "Client Page Demo",
+            f1Title: "Public Page",
+            f1Text: "A simple and intuitive calendar allowing your clients to book at any time.",
+            f2Title: "Email Notifications",
+            f2Text: "Instant alerts and beautifully designed confirmation/rejection emails sent automatically.",
+            f3Title: "Dashboard",
+            f3Text: "A modern interface to track your request statuses and manage your business.",
+            connectedAs: "Logged in: "
+        }
+    };
+
+    let currentLang = localStorage.getItem('saasLang') || 'fr';
+
+    function applyTranslations() {
+        const t = translations[currentLang];
+        document.getElementById('badgeIntro').innerText = t.badge;
+        document.getElementById('mainTitle').innerText = t.title;
+        document.getElementById('mainDescription').innerText = t.description;
+        
+        const storedUserId = localStorage.getItem('userId') || '1';
+        document.getElementById('btnDemo').innerText = t.btnDemo;
+        document.getElementById('btnDemo').href = `booking.html?user=${storedUserId}`;
+        
+        document.getElementById('f1Title').innerText = t.f1Title;
+        document.getElementById('f1Text').innerText = t.f1Text;
+        document.getElementById('f2Title').innerText = t.f2Title;
+        document.getElementById('f2Text').innerText = t.f2Text;
+        document.getElementById('f3Title').innerText = t.f3Title;
+        document.getElementById('f3Text').innerText = t.f3Text;
+
+        const storedEmail = localStorage.getItem('userEmail');
+        const btnMerchant = document.getElementById('btnMerchant');
+        const userIndicator = document.getElementById('userIndicator');
+
+        if (storedEmail) {
+            btnMerchant.innerText = t.btnDashboard;
+            btnMerchant.href = "dashboard.html"; 
+            
+            userIndicator.innerText = `${t.connectedAs}${storedEmail}`;
+            userIndicator.style.display = 'block';
+        } else {
+            btnMerchant.innerText = t.btnMerchant;
+            btnMerchant.href = "login.html";
+            userIndicator.style.display = 'none';
+        }
+        
+        document.getElementById('langSelect').value = currentLang;
+    }
+
+    document.getElementById('langSelect').addEventListener('change', (e) => {
+        currentLang = e.target.value;
+        localStorage.setItem('saasLang', currentLang);
+        applyTranslations();
+    });
+
+    applyTranslations();
+</script>
+</body>
+</html>
