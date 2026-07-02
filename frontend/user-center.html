@@ -318,8 +318,10 @@
     const email = localStorage.getItem('userEmail');
     const userId = localStorage.getItem('userId');
     
-    // ⚠️ METS ICI TON URL DE PRODUCTION RAILWAY (ex: 'https://mon-projet-production.up.railway.app')
+    // ⚠️ METS ICI TON URL DE PRODUCTION RAILWAY
     const BASE_URL = 'https://mon-saas-rdv-backend-production.up.railway.app';
+    
+    // 1. Définition propre du lien avec le chemin complet des sous-dossiers GitHub Pages
     const bookingLink = `${window.location.origin}/mon-saas-rdv-backend/frontend/booking.html?user=${userId}`;
 
     if (!email || !userId) {
@@ -330,7 +332,8 @@
         document.getElementById('editEmail').value = email;
         document.getElementById('userInitial').innerText = email.charAt(0).toUpperCase();
         
-        document.getElementById('bookingUrlDisplay').innerText = `${FRONTEND_URL}/booking.html?user=${userId}`;
+        // 2. Utilisation de la bonne variable corrigée pour afficher le lien sur la page
+        document.getElementById('bookingUrlDisplay').innerText = bookingLink;
     }
 
     const translations = {
@@ -341,7 +344,7 @@
             lblHello: "Bonjour",
             logoutBtn: "Déconnexion",
             mainTitle: "Paramètres du Compte",
-            lblLinkTitle: "Votre page de réservation publique :",
+            lblLinkTitle: "VOTRE PAGE DE RÉSERVATION PUBLIQUE :",
             btnCopy: "Copier",
             btnCopied: "Copié !",
             lblMemberSince: "Membre depuis Juin 2026",
@@ -393,102 +396,116 @@
     function applyTranslations() {
         const t = translations[currentLang];
         
-        document.getElementById('navHome').innerText = t.navHome;
-        document.getElementById('navDashboard').innerText = t.navDashboard;
-        document.getElementById('navProfile').innerText = t.navProfile;
-        document.getElementById('lblHello').innerText = t.lblHello;
-        document.getElementById('logoutBtn').innerText = t.logoutBtn;
-        document.getElementById('mainTitle').innerText = t.mainTitle;
-        document.getElementById('lblLinkTitle').innerText = t.lblLinkTitle;
-        document.getElementById('btnCopyLink').innerText = document.getElementById('btnCopyLink').innerText === t.btnCopied ? t.btnCopied : t.btnCopy;
-        document.getElementById('lblMemberSince').innerText = t.lblMemberSince;
-        document.getElementById('statTotal').innerText = t.statTotal;
-        document.getElementById('statConfirmed').innerText = t.statConfirmed;
-        document.getElementById('secPersonalTitle').innerText = t.secPersonalTitle;
-        document.getElementById('lblEmailForm').innerText = t.lblEmailForm;
-        document.getElementById('lblCompanyForm').innerText = t.lblCompanyForm;
-        document.getElementById('secSecurityTitle').innerText = t.secSecurityTitle;
-        document.getElementById('lblNewPassword').innerText = t.lblNewPassword;
-        document.getElementById('lblConfirmPassword').innerText = t.lblConfirmPassword;
-        document.getElementById('btnUpdateProfile').innerText = t.btnUpdateProfile;
+        if(document.getElementById('navHome')) document.getElementById('navHome').innerText = t.navHome;
+        if(document.getElementById('navDashboard')) document.getElementById('navDashboard').innerText = t.navDashboard;
+        if(document.getElementById('navProfile')) document.getElementById('navProfile').innerText = t.navProfile;
+        if(document.getElementById('lblHello')) document.getElementById('lblHello').innerText = t.lblHello;
+        if(document.getElementById('logoutBtn')) document.getElementById('logoutBtn').innerText = t.logoutBtn;
+        if(document.getElementById('mainTitle')) document.getElementById('mainTitle').innerText = t.mainTitle;
+        if(document.getElementById('lblLinkTitle')) document.getElementById('lblLinkTitle').innerText = t.lblLinkTitle;
         
-        document.getElementById('newPassword').placeholder = t.passPlaceholder;
-        document.getElementById('confirmPassword').placeholder = t.confirmPlaceholder;
+        const btnCopy = document.getElementById('btnCopyLink');
+        if(btnCopy) {
+            btnCopy.innerText = btnCopy.innerText === t.btnCopied ? t.btnCopied : t.btnCopy;
+        }
+        
+        if(document.getElementById('lblMemberSince')) document.getElementById('lblMemberSince').innerText = t.lblMemberSince;
+        if(document.getElementById('statTotal')) document.getElementById('statTotal').innerText = t.statTotal;
+        if(document.getElementById('statConfirmed')) document.getElementById('statConfirmed').innerText = t.statConfirmed;
+        if(document.getElementById('secPersonalTitle')) document.getElementById('secPersonalTitle').innerText = t.secPersonalTitle;
+        if(document.getElementById('lblEmailForm')) document.getElementById('lblEmailForm').innerText = t.lblEmailForm;
+        if(document.getElementById('lblCompanyForm')) document.getElementById('lblCompanyForm').innerText = t.lblCompanyForm;
+        if(document.getElementById('secSecurityTitle')) document.getElementById('secSecurityTitle').innerText = t.secSecurityTitle;
+        if(document.getElementById('lblNewPassword')) document.getElementById('lblNewPassword').innerText = t.lblNewPassword;
+        if(document.getElementById('lblConfirmPassword')) document.getElementById('lblConfirmPassword').innerText = t.lblConfirmPassword;
+        if(document.getElementById('btnUpdateProfile')) document.getElementById('btnUpdateProfile').innerText = t.btnUpdateProfile;
+        
+        if(document.getElementById('newPassword')) document.getElementById('newPassword').placeholder = t.passPlaceholder;
+        if(document.getElementById('confirmPassword')) document.getElementById('confirmPassword').placeholder = t.confirmPlaceholder;
 
-        document.getElementById('langSelect').value = currentLang;
+        if(document.getElementById('langSelect')) document.getElementById('langSelect').value = currentLang;
     }
 
+    // 3. Correction de la fonction de copie pour utiliser la bonne variable
     window.copyBookingLink = function() {
-        const urlText = document.getElementById('bookingUrlDisplay').innerText;
+        const urlText = bookingLink; 
         navigator.clipboard.writeText(urlText).then(() => {
             const btn = document.getElementById('btnCopyLink');
-            const originalText = translations[currentLang].btnCopy;
-            btn.innerText = translations[currentLang].btnCopied;
-            btn.style.background = "var(--success)";
-            setTimeout(() => {
-                btn.innerText = originalText;
-                btn.style.background = "var(--primary)";
-            }, 2000);
+            if(btn) {
+                const originalText = translations[currentLang].btnCopy;
+                btn.innerText = translations[currentLang].btnCopied;
+                btn.style.background = "var(--success)";
+                setTimeout(() => {
+                    btn.innerText = originalText;
+                    btn.style.background = "var(--primary)";
+                }, 2000);
+            }
+        }).catch(err => {
+            console.error("Erreur de copie :", err);
         });
     }
 
-    document.getElementById('langSelect').addEventListener('change', (e) => {
-        currentLang = e.target.value;
-        localStorage.setItem('saasLang', currentLang);
-        applyTranslations();
-    });
+    if(document.getElementById('langSelect')) {
+        document.getElementById('langSelect').addEventListener('change', (e) => {
+            currentLang = e.target.value;
+            localStorage.setItem('saasLang', currentLang);
+            applyTranslations();
+        });
+    }
 
     async function loadData() {
         try {
             const profileRes = await fetch(`${BASE_URL}/api/user/profile?userId=${userId}`);
             if (profileRes.ok) {
                 const profileData = await profileRes.json();
-                document.getElementById('editCompany').value = profileData.businessName || "";
+                if(document.getElementById('editCompany')) document.getElementById('editCompany').value = profileData.businessName || "";
             }
 
             const statsRes = await fetch(`${BASE_URL}/api/appointments?userId=${userId}`);
             if (statsRes.ok) {
                 const appointments = await statsRes.json();
-                document.getElementById('totalAppts').innerText = appointments.length;
-                document.getElementById('confirmedAppts').innerText = appointments.filter(a => a.status === 'Confirmed').length;
+                if(document.getElementById('totalAppts')) document.getElementById('totalAppts').innerText = appointments.length;
+                if(document.getElementById('confirmedAppts')) document.getElementById('confirmedAppts').innerText = appointments.filter(a => a.status === 'Confirmed').length;
             }
         } catch (e) { 
             console.error("Erreur lors de la récupération des données:", e); 
         }
     }
 
-    document.getElementById('profileForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const t = translations[currentLang];
-        
-        const businessName = document.getElementById('editCompany').value;
-        const password = document.getElementById('newPassword').value;
-        const confirmPassword = document.getElementById('confirmPassword').value;
+    if(document.getElementById('profileForm')) {
+        document.getElementById('profileForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const t = translations[currentLang];
+            
+            const businessName = document.getElementById('editCompany').value;
+            const password = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
 
-        if (password && password !== confirmPassword) {
-            alert(t.alertMismatch);
-            return;
-        }
+            if (password && password !== confirmPassword) {
+                alert(t.alertMismatch);
+                return;
+            }
 
-        try {
-            const response = await fetch(`${BASE_URL}/api/user/profile`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId, businessName, password })
-            });
+            try {
+                const response = await fetch(`${BASE_URL}/api/user/profile`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, businessName, password })
+                });
 
-            if (response.ok) {
-                alert(t.alertUpdate);
-                document.getElementById('newPassword').value = "";
-                document.getElementById('confirmPassword').value = "";
-            } else {
+                if (response.ok) {
+                    alert(t.alertUpdate);
+                    document.getElementById('newPassword').value = "";
+                    document.getElementById('confirmPassword').value = "";
+                } else {
+                    alert(t.alertError);
+                }
+            } catch (error) {
+                console.error("Erreur lors de la requête de modification:", error);
                 alert(t.alertError);
             }
-        } catch (error) {
-            console.error("Erreur lors de la requête de modification:", error);
-            alert(t.alertError);
-        }
-    });
+        });
+    }
 
     applyTranslations();
     loadData();
