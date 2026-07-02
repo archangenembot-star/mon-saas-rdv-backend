@@ -494,11 +494,11 @@
     }
 
     function generateBookingUrl() {
-        if (userId) {
-            const currentOrigin = window.location.origin;
-            document.getElementById('bookingUrlField').value = `${currentOrigin}/booking.html?user=${userId}`;
-        }
+    if (userId) {
+        const currentOrigin = window.location.origin;
+        document.getElementById('bookingUrlField').value = `${currentOrigin}/mon-saas-rdv-backend/frontend/booking.html?user=${userId}`;
     }
+}
 
     window.copyBookingLink = function() {
         const t = translations[currentLang];
